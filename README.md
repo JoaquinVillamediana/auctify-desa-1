@@ -1,4 +1,4 @@
-# Auctify
+# Auctify - Grupo 3
 
 **TPO DAI · 1C 2026**
 
