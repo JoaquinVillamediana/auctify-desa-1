@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Auctify",
+    "slug": "auctify",
+    "scheme": "auctify",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E1B4B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.auctify.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1E1B4B"
+      },
+      "package": "com.auctify.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Auctify necesita acceso a tus fotos para adjuntar el documento.",
+          "cameraPermission": "Auctify necesita la cámara para fotografiar tu documento."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

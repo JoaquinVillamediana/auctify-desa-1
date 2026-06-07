@@ -1,0 +1,33 @@
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editores / IDEs ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- Entorno / secretos ---
+.env
+.env.*
+!.env.example
+
+# --- Node (red de seguridad; cada subproyecto tiene su propio .gitignore) ---
+node_modules/
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# --- Backend (Prisma / SQLite / build / uploads) ---
+backend/dist/
+backend/coverage/
+backend/uploads/
+*.db
+*.db-journal
+*.sqlite
+
+# --- Mobile (Expo) ---
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
