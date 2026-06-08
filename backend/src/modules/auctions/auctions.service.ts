@@ -7,6 +7,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError, ErrorCode, notFound } from "../../lib/errors";
+import { createNotification } from "../notifications/notifications.service";
 
 // ── Constantes de categoría ─────────────────────────────────────────────────
 
@@ -416,6 +417,237 @@ export async function connectToAuction(auctionId: number, clientId: number) {
   return prisma.auctionSession.create({
     data: { auctionId, clientId, startedAt: new Date(), active: true },
   });
+}
+
+// ── POST /auctions/:id/items/:itemId/open ────────────────────────────────────
+
+/**
+ * Abre (activa) un ítem del catálogo para subastarse en vivo.
+ * Sólo ADMIN. Emite AuctionEvent 'item_opened'; incrementa auction.version.
+ */
+export async function openItem(auctionId: number, itemId: number) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: { catalog: { include: { items: { where: { id: itemId } } } } },
+  });
+  if (!auction) throw notFound("Subasta");
+  if (!auction.catalog) throw notFound("Catálogo");
+
+  const item = auction.catalog.items[0];
+  if (!item) throw notFound("Ítem del catálogo");
+
+  if (item.status === "active") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "El ítem ya está activo");
+  }
+  if (item.status === "sold" || item.status === "unsold") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "El ítem ya fue adjudicado");
+  }
+
+  const [updatedItem, updatedAuction] = await prisma.$transaction([
+    prisma.catalogItem.update({
+      where: { id: itemId },
+      data: { status: "active" },
+      include: { product: { select: { id: true, catalogDescription: true } } },
+    }),
+    prisma.auction.update({
+      where: { id: auctionId },
+      data: { currentItemId: itemId, version: { increment: 1 } },
+    }),
+  ]);
+
+  await prisma.auctionEvent.create({
+    data: {
+      auctionId,
+      type: "item_opened",
+      data: JSON.stringify({ itemId, lotNumber: item.lotNumber }),
+    },
+  });
+
+  return {
+    itemId: updatedItem.id,
+    lotNumber: updatedItem.lotNumber,
+    status: updatedItem.status,
+    basePrice: updatedItem.basePrice,
+    catalogDescription: updatedItem.product.catalogDescription,
+    auctionVersion: updatedAuction.version,
+  };
+}
+
+// ── POST /auctions/:id/items/:itemId/close ────────────────────────────────────
+
+/**
+ * Adjudica (cierra) un ítem.
+ * Si hay pujas: marca la ganadora, crea SaleRecord, notifica al ganador.
+ * Si no hay pujas: marca item como 'unsold', boughtByCompany=true.
+ * Emite AuctionEvent 'item_sold' o 'item_unsold'; incrementa auction.version.
+ */
+export async function closeItem(auctionId: number, itemId: number) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: {
+      catalog: {
+        include: {
+          items: {
+            where: { id: itemId },
+            include: {
+              product: { select: { id: true, ownerId: true, catalogDescription: true } },
+              bids: {
+                include: { attendee: { select: { clientId: true } } },
+                orderBy: { amount: "desc" },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!auction) throw notFound("Subasta");
+  if (!auction.catalog) throw notFound("Catálogo");
+
+  const item = auction.catalog.items[0];
+  if (!item) throw notFound("Ítem del catálogo");
+
+  if (item.status !== "active") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "El ítem no está activo");
+  }
+
+  const bids = item.bids;
+  const winningBid = bids.length > 0 ? bids[0] : null;
+
+  if (winningBid) {
+    // ── Hay ganador ──────────────────────────────────────────────────────────
+    const winnerClientId = winningBid.attendee.clientId;
+
+    // Calcular comisión: si item.commission ≤ 1 → tasa (e.g. 0.10 = 10%)
+    // si > 1 → monto absoluto (legacy). Almacenar siempre el monto en pesos.
+    const commissionAmount =
+      item.commission <= 1
+        ? Math.round(winningBid.amount * item.commission * 100) / 100
+        : item.commission;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // Marcar bid ganadora y las demás como perdedoras
+      await tx.bid.update({ where: { id: winningBid.id }, data: { winner: true } });
+      if (bids.length > 1) {
+        await tx.bid.updateMany({
+          where: { itemId, id: { not: winningBid.id } },
+          data: { winner: false },
+        });
+      }
+
+      // Crear SaleRecord
+      const saleRecord = await tx.saleRecord.create({
+        data: {
+          auctionId,
+          ownerId: item.product.ownerId,
+          productId: item.product.id,
+          clientId: winnerClientId,
+          amount: winningBid.amount,
+          commission: commissionAmount,
+          paymentMethodId: winningBid.paymentMethodId,
+          boughtByCompany: false,
+          paymentStatus: "pending",
+          pickupInPerson: false,
+        },
+      });
+
+      // Actualizar item → sold
+      await tx.catalogItem.update({
+        where: { id: itemId },
+        data: { status: "sold", auctioned: true },
+      });
+
+      // Limpiar currentItemId y versionar
+      const updatedAuction = await tx.auction.update({
+        where: { id: auctionId },
+        data: { currentItemId: null, version: { increment: 1 } },
+      });
+
+      await tx.auctionEvent.create({
+        data: {
+          auctionId,
+          type: "item_sold",
+          data: JSON.stringify({
+            itemId,
+            saleRecordId: saleRecord.id,
+            amount: winningBid.amount,
+            winnerClientId,
+          }),
+        },
+      });
+
+      return { saleRecord, auctionVersion: updatedAuction.version };
+    });
+
+    // Notificar al ganador (fuera de la tx para no bloquear)
+    const desc = item.product.catalogDescription ?? `Lote #${item.lotNumber}`;
+    await createNotification(
+      winnerClientId,
+      "auction_winner",
+      "¡Ganaste la subasta!",
+      `Ganaste "${desc}" por $${winningBid.amount}. Pasá a pagar.`,
+      {
+        saleRecordId: result.saleRecord.id,
+        itemId,
+        amount: winningBid.amount,
+      }
+    );
+
+    return result.saleRecord;
+  } else {
+    // ── Sin pujas: empresa compra al base ────────────────────────────────────
+    await prisma.$transaction([
+      prisma.catalogItem.update({
+        where: { id: itemId },
+        data: { status: "unsold", auctioned: true },
+      }),
+      prisma.auction.update({
+        where: { id: auctionId },
+        data: { currentItemId: null, version: { increment: 1 } },
+      }),
+      prisma.auctionEvent.create({
+        data: {
+          auctionId,
+          type: "item_unsold",
+          data: JSON.stringify({ itemId, lotNumber: item.lotNumber }),
+        },
+      }),
+    ]);
+
+    return { unsold: true, itemId };
+  }
+}
+
+// ── POST /auctions/:id/close ──────────────────────────────────────────────────
+
+/**
+ * Cierra la subasta completa.
+ * Emite AuctionEvent 'auction_ended'; incrementa auction.version.
+ */
+export async function closeAuction(auctionId: number) {
+  const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+  if (!auction) throw notFound("Subasta");
+
+  if (auction.status === "closed") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "La subasta ya está cerrada");
+  }
+
+  const [updatedAuction] = await prisma.$transaction([
+    prisma.auction.update({
+      where: { id: auctionId },
+      data: { status: "closed", version: { increment: 1 } },
+    }),
+    prisma.auctionEvent.create({
+      data: {
+        auctionId,
+        type: "auction_ended",
+        data: JSON.stringify({ auctionId }),
+      },
+    }),
+  ]);
+
+  return { id: updatedAuction.id, status: updatedAuction.status, version: updatedAuction.version };
 }
 
 // ── POST /auctions/:id/disconnect ────────────────────────────────────────────

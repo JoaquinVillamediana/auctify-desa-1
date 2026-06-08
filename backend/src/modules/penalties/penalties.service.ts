@@ -9,6 +9,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { notFound, forbidden, validationError } from "../../lib/errors";
+import { createNotification } from "../notifications/notifications.service";
 import type { CreatePenaltyInput } from "./penalties.schema";
 
 // ── create ────────────────────────────────────────────────────────────────────
@@ -23,9 +24,9 @@ import type { CreatePenaltyInput } from "./penalties.schema";
  *  2. Setear Client.blocked = true
  */
 export async function create(data: CreatePenaltyInput) {
-  return prisma.$transaction(async (tx) => {
+  const penalty = await prisma.$transaction(async (tx) => {
     // Crear la multa
-    const penalty = await tx.penalty.create({
+    const created = await tx.penalty.create({
       data: {
         clientId: data.clientId,
         auctionId: data.auctionId,
@@ -41,8 +42,19 @@ export async function create(data: CreatePenaltyInput) {
       data: { blocked: true },
     });
 
-    return penalty;
+    return created;
   });
+
+  // Notificar al cliente (fuera de la transacción para no bloquear)
+  await createNotification(
+    data.clientId,
+    "penalty",
+    "Multa generada",
+    `Se generó una multa de $${data.amount}.`,
+    { penaltyId: penalty.id }
+  );
+
+  return penalty;
 }
 
 // ── listByClient ──────────────────────────────────────────────────────────────

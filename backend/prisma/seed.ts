@@ -33,6 +33,19 @@ async function main() {
   });
   console.log(`✓ Country: ${argentina.name} (id=${argentina.id})`);
 
+  // ── Países adicionales (para el selector de país en el registro) ───────────
+  const moreCountries = [
+    { id: 2, name: "Uruguay", shortName: "UY", capital: "Montevideo", nationality: "uruguaya", languages: "español" },
+    { id: 3, name: "Brasil", shortName: "BR", capital: "Brasilia", nationality: "brasileña", languages: "portugués" },
+    { id: 4, name: "Chile", shortName: "CL", capital: "Santiago", nationality: "chilena", languages: "español" },
+    { id: 5, name: "España", shortName: "ES", capital: "Madrid", nationality: "española", languages: "español" },
+    { id: 6, name: "Estados Unidos", shortName: "US", capital: "Washington D.C.", nationality: "estadounidense", languages: "inglés" },
+  ];
+  for (const c of moreCountries) {
+    await prisma.country.upsert({ where: { id: c.id }, update: {}, create: c });
+  }
+  console.log(`✓ Países adicionales sembrados: ${moreCountries.length}`);
+
   // ── Cliente "admin" ───────────────────────────────────────────────────────
   const adminPassword = "Admin123!";
   const adminHash = await bcrypt.hash(adminPassword, 10);

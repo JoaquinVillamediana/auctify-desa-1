@@ -1,20 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { notFound, forbidden, validationError, AppError, ErrorCode } from "../../lib/errors";
+import { createNotification } from "../notifications/notifications.service";
 import type { JwtPayload } from "../../lib/jwt";
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function createNotification(clientId: number, type: string, title: string, message: string, payload?: Record<string, unknown>) {
-  await prisma.notification.create({
-    data: {
-      clientId,
-      type,
-      title,
-      message,
-      payload: payload ? JSON.stringify(payload) : null,
-    },
-  });
-}
 
 // ── Operaciones ──────────────────────────────────────────────────────────────
 
@@ -178,20 +165,9 @@ export async function paySaleRecord(
     throw new AppError(ErrorCode.NO_VERIFIED_PAYMENT_METHOD, 403, "El medio de pago no está verificado");
   }
 
-  // Si es cheque certificado, verificar límite
-  if (paymentMethod.type === "certified_check" && paymentMethod.reservedAmount !== null) {
-    const paidBefore = await prisma.saleRecord.aggregate({
-      _sum: { amount: true },
-      where: {
-        paymentMethodId: data.paymentMethodId,
-        paymentStatus: "paid",
-        id: { not: saleRecordId },
-      },
-    });
-
-    const totalPaid = (paidBefore._sum.amount ?? 0) + saleRecord.amount;
-
-    if (totalPaid > paymentMethod.reservedAmount) {
+  // Si es cheque certificado, verificar que el monto no supere el reservado
+  if (paymentMethod.type === "certified_check") {
+    if (saleRecord.amount > (paymentMethod.reservedAmount ?? 0)) {
       return await handlePaymentFailure({ ...saleRecord, productId: saleRecord.productId }, auth.sub);
     }
   }
@@ -241,15 +217,13 @@ async function handlePaymentFailure(saleRecord: { id: number; clientId: number; 
   });
 
   // Notificar al cliente
-  await prisma.notification.create({
-    data: {
-      clientId: saleRecord.clientId,
-      type: "penalty",
-      title: "Pago fallido — multa generada",
-      message: `No se pudo procesar el pago. Se generó una multa de $${penaltyAmount.toFixed(2)}. Tenés 72 hs para regularizar.`,
-      payload: JSON.stringify({ penaltyAmount, penaltyId: penalty.id }),
-    },
-  });
+  await createNotification(
+    saleRecord.clientId,
+    "penalty",
+    "Multa generada",
+    "No se pudo pagar la compra; se generó una multa del 10%. Tu cuenta quedó bloqueada hasta abonarla.",
+    { penaltyAmount }
+  );
 
   throw new AppError(ErrorCode.INSUFFICIENT_FUNDS, 422, "Fondos insuficientes", {
     penaltyAmount,

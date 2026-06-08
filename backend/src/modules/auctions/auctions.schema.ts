@@ -85,3 +85,11 @@ export const registerAttendeeSchema = z.object({
       .optional(),
   }),
 });
+
+/** Params con :id (auctionId) y :itemId numéricos. */
+export const auctionItemParamsSchema = z.object({
+  params: z.object({
+    id: numericId,
+    itemId: numericId,
+  }),
+});

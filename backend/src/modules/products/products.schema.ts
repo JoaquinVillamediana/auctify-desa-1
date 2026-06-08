@@ -27,3 +27,21 @@ export const listProductsSchema = z.object({
       .optional(),
   }),
 });
+
+export const updateProductSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, "ID debe ser un número").transform(Number),
+  }),
+  body: z.object({
+    date: z.string().optional(),
+    available: z.boolean().optional(),
+    catalogDescription: z.string().optional(),
+    fullDescription: z.string().min(1).optional(),
+    reviewerId: z.coerce.number().int().positive().optional(),
+    insurancePolicy: z.string().optional(),
+    pieceCount: z.coerce.number().int().positive().optional(),
+    artist: z.string().optional(),
+    historicalDate: z.string().optional(),
+    history: z.string().optional(),
+  }),
+});

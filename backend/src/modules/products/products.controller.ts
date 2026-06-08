@@ -60,15 +60,66 @@ export async function listProducts(
     const isAdmin = req.auth?.roles.includes("ADMIN") ?? false;
 
     // OWNER solo puede ver los suyos; ADMIN puede filtrar por ownerId
+    const ownerIdRaw = req.query.ownerId;
     const ownerId = isAdmin
-      ? req.query.ownerId as number | undefined
+      ? ownerIdRaw !== undefined ? Number(ownerIdRaw) : undefined
       : req.owner!.id;
+
+    const availableRaw = req.query.available;
+    const available = availableRaw !== undefined
+      ? (availableRaw as string) === "true"
+      : undefined;
 
     const products = await productsService.listProducts({
       ownerId,
-      available: req.query.available as boolean | undefined,
+      available,
     });
     res.json(products);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** GET /products/:id — detalle de producto con fotos, location e insuranceDetail. optionalAuth. */
+export async function getProductDetail(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const product = await productsService.getProductDetail(productId);
+    res.json(product);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** PATCH /products/:id — actualiza producto. Requiere JWT; solo dueño o admin. */
+export async function updateProduct(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const productId = parseInt(req.params.id, 10);
+    const callerId = req.auth!.sub;
+    const isAdmin = req.auth!.roles.includes("ADMIN");
+
+    const product = await productsService.updateProduct(productId, callerId, isAdmin, {
+      date: req.body.date,
+      available: req.body.available,
+      catalogDescription: req.body.catalogDescription,
+      fullDescription: req.body.fullDescription,
+      reviewerId: req.body.reviewerId,
+      insurancePolicy: req.body.insurancePolicy,
+      pieceCount: req.body.pieceCount,
+      artist: req.body.artist,
+      historicalDate: req.body.historicalDate,
+      history: req.body.history,
+    });
+
+    res.json(product);
   } catch (err) {
     next(err);
   }

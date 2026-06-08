@@ -2,19 +2,22 @@
  * Rutas del módulo auctions.
  * Base path: /v1/auctions (montado en routes/index.ts)
  *
- * GET  /auctions                      — listar subastas (público)
- * GET  /auctions/:id                  — detalle (público)
- * POST /auctions                      — crear subasta (ADMIN)
- * PATCH /auctions/:id                 — actualizar subasta (ADMIN)
- * GET  /auctions/:id/catalog          — catálogo con ítems (optionalAuth para precios)
- * GET  /auctions/:id/streaming        — URL de streaming (requireAuth)
- * POST /auctions/:id/attendees        — registrarse como asistente (requireAuth)
- * GET  /auctions/:id/attendees        — listar asistentes (ADMIN)
- * POST /auctions/:id/connect          — conectarse a la sesión en vivo (requireAuth)
- * POST /auctions/:id/disconnect       — desconectarse (requireAuth)
- * GET  /auctions/:id/live-status      — estado en tiempo real (requireAuth)
+ * GET  /auctions                           — listar subastas (público)
+ * GET  /auctions/:id                       — detalle (público)
+ * POST /auctions                           — crear subasta (ADMIN)
+ * PATCH /auctions/:id                      — actualizar subasta (ADMIN)
+ * GET  /auctions/:id/catalog               — catálogo con ítems (optionalAuth para precios)
+ * GET  /auctions/:id/streaming             — URL de streaming (requireAuth)
+ * POST /auctions/:id/attendees             — registrarse como asistente (requireAuth)
+ * GET  /auctions/:id/attendees             — listar asistentes (ADMIN)
+ * POST /auctions/:id/connect               — conectarse a la sesión en vivo (requireAuth)
+ * POST /auctions/:id/disconnect            — desconectarse (requireAuth)
+ * GET  /auctions/:id/live-status           — estado en tiempo real (requireAuth)
+ * POST /auctions/:id/items/:itemId/open    — abrir ítem (ADMIN)
+ * POST /auctions/:id/items/:itemId/close   — adjudicar ítem (ADMIN)
+ * POST /auctions/:id/close                 — cerrar subasta (ADMIN)
  *
- * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
+ * Ver docs/features/F03-auctions.md, F04-auction-session-live.md y F04-running.md
  */
 
 import { Router } from "express";
@@ -26,6 +29,7 @@ import {
   createAuctionSchema,
   updateAuctionSchema,
   registerAttendeeSchema,
+  auctionItemParamsSchema,
 } from "./auctions.schema";
 import * as ctrl from "./auctions.controller";
 
@@ -116,5 +120,73 @@ router.get(
   validate(auctionIdSchema),
   ctrl.getLiveStatus
 );
+
+// ── Control de la sesión en vivo (ADMIN) ──────────────────────────────────────
+
+/**
+ * POST /auctions/:id/items/:itemId/open
+ * Activa un ítem del catálogo para subasta en vivo.
+ * En dev también accesible sin rol ADMIN para pruebas.
+ */
+if (process.env.NODE_ENV !== "production") {
+  router.post(
+    "/:id/items/:itemId/open",
+    requireAuth,
+    validate(auctionItemParamsSchema),
+    ctrl.openItem
+  );
+} else {
+  router.post(
+    "/:id/items/:itemId/open",
+    requireAuth,
+    requireRole("ADMIN"),
+    validate(auctionItemParamsSchema),
+    ctrl.openItem
+  );
+}
+
+/**
+ * POST /auctions/:id/items/:itemId/close
+ * Adjudica el ítem activo al mejor postor o lo marca como unsold.
+ * En dev también accesible sin rol ADMIN para pruebas.
+ */
+if (process.env.NODE_ENV !== "production") {
+  router.post(
+    "/:id/items/:itemId/close",
+    requireAuth,
+    validate(auctionItemParamsSchema),
+    ctrl.closeItem
+  );
+} else {
+  router.post(
+    "/:id/items/:itemId/close",
+    requireAuth,
+    requireRole("ADMIN"),
+    validate(auctionItemParamsSchema),
+    ctrl.closeItem
+  );
+}
+
+/**
+ * POST /auctions/:id/close
+ * Cierra la subasta completa (status → closed).
+ * En dev también accesible sin rol ADMIN para pruebas.
+ */
+if (process.env.NODE_ENV !== "production") {
+  router.post(
+    "/:id/close",
+    requireAuth,
+    validate(auctionIdSchema),
+    ctrl.closeAuction
+  );
+} else {
+  router.post(
+    "/:id/close",
+    requireAuth,
+    requireRole("ADMIN"),
+    validate(auctionIdSchema),
+    ctrl.closeAuction
+  );
+}
 
 export default router;
