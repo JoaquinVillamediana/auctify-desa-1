@@ -7,7 +7,7 @@ Mapeo de **cada observación** del feedback (Grupo 03) + las notas del equipo, a
 
 | # | Observación (Entrega 1) | Resolución | Dónde |
 |---|--------------------------|------------|-------|
-| 1 | **Wireframes:** pantallas de alta fidelidad con mucho contenido, riesgo de **letra muy chica** | Escala tipográfica con **mínimos legibles** (cuerpo ≥ 15–16) en el theme; nota de trazabilidad con Figma | `mobile/src/theme/*`, `01-architecture.md` §4, `mobile/README.md` |
+| 1 | **Wireframes:** pantallas de alta fidelidad con mucho contenido, riesgo de **letra muy chica** | Tokens (colores/tipografía/spacing) **extraídos del Figma** y volcados al theme; cuerpo ≥ 16, los 10–11px solo para micro-labels en mayúscula (como en el diseño) | `mobile/src/theme/*`, [`08-design-system.md`](./08-design-system.md) |
 | 2 | **Polling:** justificar polling vs WebSocket/SSE; evitar datos viejos; dos pujas casi simultáneas | ADR completo: por qué polling, `version` para no mostrar stale, concurrencia atómica en el `POST` (idempotencia, `BID_SUPERSEDED`) | [`decisions/ADR-002-realtime-polling.md`](./decisions/ADR-002-realtime-polling.md), `F04`, `F05` |
 | 3 | **`basePrice`** debía verse para cualquier **registrado**, no solo asistentes | `basePrice` se devuelve a cualquier **autenticado** (cualquier categoría); `null` solo anónimo | `auctify-openapi.yaml` (`/auctions/{id}/catalog`, `CatalogItem`), `03-auth-and-roles.md`, `F03` |
 | 4 | **Identidad por JWT**, no `clientId`/`ownerId`/`attendeeId` del front | Actor desde el token; se quitan IDs de bodies/queries; se agregan `GET /auth/me` y `/me/...` | [`decisions/ADR-003-jwt-identity.md`](./decisions/ADR-003-jwt-identity.md), `03-auth-and-roles.md` |

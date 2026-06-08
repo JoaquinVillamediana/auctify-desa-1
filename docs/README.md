@@ -10,6 +10,9 @@ Punto de entrada de la documentación. **Orden de lectura sugerido** según para
 5. [`04-error-handling.md`](./04-error-handling.md) — contrato de errores + UX de errores en mobile.
 6. **[`features/README.md`](./features/README.md) — hoja de ruta: tomá una feature en orden.**
 
+## 🎨 Diseño (Figma → código)
+- [`08-design-system.md`](./08-design-system.md) — tokens (colores/tipografía/spacing) extraídos del Figma `Auctify - DA1`, mapa de pantallas (node IDs) y trazabilidad de diseño.
+
 ## 📐 Quiero entender una decisión técnica
 - [`decisions/ADR-001-stack.md`](./decisions/ADR-001-stack.md) — por qué Node/Express + Expo + Prisma/SQLite.
 - [`decisions/ADR-002-realtime-polling.md`](./decisions/ADR-002-realtime-polling.md) — **polling vs WebSocket/SSE**, datos viejos y pujas simultáneas (corrección E1).

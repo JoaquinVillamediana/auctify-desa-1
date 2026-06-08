@@ -6,8 +6,8 @@
  * Figma `Auctify - DA1.fig` para mantener la trazabilidad de diseño exigida.
  */
 export { colors } from './colors';
-export { typography } from './typography';
-export { spacing } from './spacing';
+export { typography, fonts } from './typography';
+export { spacing, radius } from './spacing';
 
 export type { TypographyToken } from './typography';
-export type { SpacingToken } from './spacing';
+export type { SpacingToken, RadiusToken } from './spacing';
