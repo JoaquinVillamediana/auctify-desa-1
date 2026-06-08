@@ -132,6 +132,8 @@ model PayoutAccount {
   declaredAt     DateTime
 
   owner Owner @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId, declaredAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,6 +170,9 @@ model Auction {
   saleRecords    SaleRecord[]
   penalties      Penalty[]
   currentItem    CatalogItem? @relation("CurrentItem", fields: [currentItemId], references: [id])
+
+  @@index([status, startsAt])
+  @@index([category])
 }
 
 /// Catálogo de la subasta (relación 1:1 con Auction).
@@ -212,6 +217,8 @@ model Photo {
   photoUrl  String
 
   product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
 }
 
 /// Ubicación física del producto (relación 1:1 con Product).
@@ -258,6 +265,9 @@ model CatalogItem {
 
   /// Subastas que tienen este ítem como ítem actual
   activeInAuctions Auction[] @relation("CurrentItem")
+
+  @@index([catalogId, status])
+  @@index([productId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -278,6 +288,7 @@ model Attendee {
 
   @@unique([auctionId, clientId])
   @@unique([auctionId, bidderNumber])
+  @@index([clientId])
 }
 
 /// Conexión en vivo a la subasta. Invariante: un cliente tiene a lo sumo 1 sesión activa en todo el sistema.
@@ -291,6 +302,9 @@ model AuctionSession {
 
   auction Auction @relation(fields: [auctionId], references: [id])
   client  Client  @relation(fields: [clientId], references: [id])
+
+  @@index([clientId, active])
+  @@index([auctionId, active])
 }
 
 /// Puja sobre un ítem. Todas las pujas se guardan en orden (timestamp + id).
@@ -308,6 +322,12 @@ model Bid {
   item          CatalogItem   @relation(fields: [itemId], references: [id])
   attendee      Attendee      @relation(fields: [attendeeId], references: [id])
   paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+
+  @@index([itemId, amount(sort: Desc)])
+  @@index([itemId, timestamp(sort: Desc)])
+  @@index([itemId, winner])
+  @@index([attendeeId, winner])
+  @@index([attendeeId, timestamp(sort: Desc)])
 }
 
 /// Bitácora de eventos de la subasta (para polling live-status).
@@ -322,6 +342,8 @@ model AuctionEvent {
   createdAt DateTime @default(now())
 
   auction Auction @relation(fields: [auctionId], references: [id])
+
+  @@index([auctionId, createdAt(sort: Desc)])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,6 +371,8 @@ model InclusionRequest {
 
   owner   Owner   @relation(fields: [ownerId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+
+  @@index([ownerId, status])
 }
 
 /// Registro de venta generado por el sistema al cerrarse un ítem.
@@ -381,6 +405,10 @@ model SaleRecord {
   product       Product        @relation(fields: [productId], references: [id])
   client        Client?        @relation(fields: [clientId], references: [id])
   paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+
+  @@index([clientId])
+  @@index([auctionId])
+  @@index([ownerId])
 }
 
 /// Multa al cliente (10% del valor ofertado cuando no paga en 72hs).
@@ -399,6 +427,9 @@ model Penalty {
 
   client  Client  @relation(fields: [clientId], references: [id])
   auction Auction @relation(fields: [auctionId], references: [id])
+
+  @@index([clientId, status])
+  @@index([auctionId])
 }
 
 /// Notificación para el cliente.
@@ -415,6 +446,9 @@ model Notification {
   createdAt DateTime @default(now())
 
   client Client @relation(fields: [clientId], references: [id])
+
+  @@index([clientId, read])
+  @@index([clientId, createdAt(sort: Desc)])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

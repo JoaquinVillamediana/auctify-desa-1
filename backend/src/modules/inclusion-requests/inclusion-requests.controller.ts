@@ -27,9 +27,9 @@ export async function listInclusionRequests(
 ): Promise<void> {
   try {
     const isAdmin = req.auth?.roles.includes("ADMIN") ?? false;
-    const ownerId = isAdmin
-      ? (req.query.ownerId as unknown as number | undefined) ?? req.owner!.id
-      : req.owner!.id;
+    // listInclusionRequestsSchema (validate) ya transformó ownerId a number | undefined.
+    const queryOwnerId = (req.query as { ownerId?: number }).ownerId;
+    const ownerId = isAdmin ? queryOwnerId ?? req.owner!.id : req.owner!.id;
 
     const requests = await service.listInclusionRequests({
       ownerId,

@@ -18,12 +18,15 @@ export async function listItems(
 ): Promise<void> {
   try {
     const isAuthenticated = !!req.auth;
+    // listItemsSchema (validate) ya transformó estos valores:
+    // catalogId/auctionId → number, auctioned → boolean | undefined.
+    const { catalogId, auctionId, auctioned } = req.query as {
+      catalogId?: number;
+      auctionId?: number;
+      auctioned?: boolean;
+    };
     const items = await itemsService.listItems(
-      {
-        catalogId: req.query.catalogId as unknown as number | undefined,
-        auctionId: req.query.auctionId as unknown as number | undefined,
-        auctioned: req.query.auctioned as unknown as boolean | undefined,
-      },
+      { catalogId, auctionId, auctioned },
       isAuthenticated
     );
     res.status(200).json(items);
@@ -40,7 +43,7 @@ export async function getItem(
   next: NextFunction
 ): Promise<void> {
   try {
-    const itemId = req.params.id as unknown as number;
+    const itemId = Number(req.params.id);
     const isAuthenticated = !!req.auth;
     const detail = await itemsService.getItemDetail(itemId, isAuthenticated);
     res.status(200).json(detail);
@@ -72,7 +75,7 @@ export async function updateItem(
   next: NextFunction
 ): Promise<void> {
   try {
-    const id = req.params.id as unknown as number;
+    const id = Number(req.params.id);
     const result = await itemsService.updateItem(id, req.body);
     res.status(200).json(result);
   } catch (err) {
@@ -88,7 +91,7 @@ export async function listBids(
   next: NextFunction
 ): Promise<void> {
   try {
-    const itemId = req.params.id as unknown as number;
+    const itemId = Number(req.params.id);
     const bids = await itemsService.listBids(itemId);
     res.status(200).json(bids);
   } catch (err) {
@@ -123,7 +126,7 @@ export async function createBid(
       );
     }
 
-    const itemId = req.params.id as unknown as number;
+    const itemId = Number(req.params.id);
     const clientId = req.auth!.sub;
 
     const bid = await itemsService.createBid({

@@ -89,7 +89,6 @@ export default function AuctionLiveScreen() {
   const [bidAmount, setBidAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
-  const [bidSuccess, setBidSuccess] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<{ amount: number; at: Date } | null>(null);
 
   // ── Estado del panel de remate (solo admins) ────────────────────────────
@@ -268,7 +267,6 @@ export default function AuctionLiveScreen() {
 
     // Bloquear el botón hasta la confirmación 201 (regla "una puja a la vez")
     setSubmitting(true);
-    setBidSuccess(null);
 
     // Generar Idempotency-Key única para esta puja (formato: userId-itemId-timestamp)
     const idempotencyKey = `${user?.id ?? 'anon'}-${liveStatus.currentItem.itemId}-${Date.now()}`;
@@ -596,13 +594,6 @@ export default function AuctionLiveScreen() {
       {canBid ? (
         <View style={styles.bidBox}>
           <Text style={styles.bidBoxTitle}>Realizar puja</Text>
-
-          {/* Feedback de éxito */}
-          {bidSuccess ? (
-            <View style={styles.successBanner}>
-              <Text style={styles.successText}>{bidSuccess}</Text>
-            </View>
-          ) : null}
 
           {/* Feedback de error */}
           {bidError ? (
@@ -1089,19 +1080,6 @@ const styles = StyleSheet.create({
     ...typography.heading3,
     color: colors.text.primary,
     marginBottom: spacing.sm,
-  },
-  successBanner: {
-    backgroundColor: colors.feedback.successBackground,
-    borderRadius: 8,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.feedback.success,
-  },
-  successText: {
-    ...typography.bodySmall,
-    color: colors.feedback.success,
-    fontWeight: '600',
   },
   errorBanner: {
     backgroundColor: colors.feedback.errorBackground,

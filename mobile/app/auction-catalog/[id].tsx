@@ -115,16 +115,6 @@ export default function AuctionCatalogScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
 
-  header: {
-    paddingTop: 56,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600', marginBottom: 4 },
-  headerTitle: { ...typography.body, color: colors.text.primary, fontWeight: '700' },
   headerMeta: { ...typography.caption, color: colors.text.tertiary, marginTop: 2 },
 
   list: { padding: spacing.md, paddingBottom: 40 },

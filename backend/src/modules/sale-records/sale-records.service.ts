@@ -2,7 +2,11 @@ import { prisma } from "../../lib/prisma";
 import { notFound, forbidden, validationError, AppError, ErrorCode } from "../../lib/errors";
 import { createNotification } from "../notifications/notifications.service";
 import { maybeUpgradeCategory } from "../clients/clients.service";
+import { PENALTY_RATE } from "../../lib/constants";
 import type { JwtPayload } from "../../lib/jwt";
+
+/** Plazo (ms) para presentar los fondos de una multa: 72 horas. */
+const PENALTY_DUE_MS = 72 * 60 * 60 * 1000;
 
 // ── Operaciones ──────────────────────────────────────────────────────────────
 
@@ -163,6 +167,12 @@ export async function paySaleRecord(
   });
   if (!saleRecord) throw notFound("Registro de venta");
 
+  // Guard: una compra ya pagada no puede volver a pagarse (evita doble cobro
+  // y reprocesos). Ver docs/features/F07-payments.md.
+  if (saleRecord.paymentStatus === "paid") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "La compra ya fue pagada");
+  }
+
   if (saleRecord.clientId !== auth.sub) {
     throw forbidden("Solo el comprador puede pagar");
   }
@@ -210,7 +220,10 @@ export async function paySaleRecord(
 
   // Mejora de categoría: best-effort, no debe fallar el pago
   if (updated.clientId !== null) {
-    maybeUpgradeCategory(updated.clientId).catch(() => {/* best-effort */});
+    maybeUpgradeCategory(updated.clientId).catch((err) => {
+      // best-effort: no propagamos, pero dejamos rastro para diagnóstico
+      console.error("maybeUpgradeCategory falló tras paySaleRecord", err);
+    });
   }
 
   return updated;
@@ -224,20 +237,35 @@ async function handlePaymentFailure(saleRecord: { id: number; clientId: number; 
   });
 
   // Crear multa del 10%
-  const penaltyAmount = saleRecord.amount * 0.1;
+  const penaltyAmount = saleRecord.amount * PENALTY_RATE;
 
-  // Buscar el catalogItem correspondiente al producto
+  // Buscar el catalogItem correspondiente al producto DENTRO del catálogo de
+  // esta subasta (Catalog.auctionId es @unique). Un SaleRecord siempre proviene
+  // de un ítem subastado, así que el lookup debe resolver; si no, es un problema
+  // de integridad y preferimos fallar antes que escribir un itemId inválido (0).
   const catalogItem = await prisma.catalogItem.findFirst({
-    where: { productId: saleRecord.productId },
+    where: {
+      productId: saleRecord.productId,
+      catalog: { auctionId: saleRecord.auctionId },
+    },
+    select: { id: true },
   });
+
+  if (!catalogItem) {
+    throw notFound("Ítem de catálogo para la multa");
+  }
+
+  // dueAt: plazo de 72hs para presentar los fondos (consistente con penalties.service).
+  const dueAt = new Date(Date.now() + PENALTY_DUE_MS);
 
   const penalty = await prisma.penalty.create({
     data: {
       clientId: saleRecord.clientId,
       auctionId: saleRecord.auctionId,
-      itemId: catalogItem?.id ?? 0,
+      itemId: catalogItem.id,
       amount: penaltyAmount,
       status: "pending",
+      dueAt,
     },
   });
 

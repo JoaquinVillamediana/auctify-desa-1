@@ -33,3 +33,12 @@ if (!parsed.success) {
 
 /** Variables de entorno tipadas y validadas. */
 export const env = parsed.data;
+
+// SECURITY: en producción no se permite CORS abierto ('*'). Se mantiene
+// permitido en desarrollo/test para no romper el flujo local.
+if (env.NODE_ENV === "production" && env.CORS_ORIGIN === "*") {
+  console.error(
+    "❌ CORS_ORIGIN no puede ser '*' en producción. Configurá los orígenes permitidos."
+  );
+  process.exit(1);
+}

@@ -207,20 +207,6 @@ export default function PayoutAccountsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
 
-  topbar: {
-    paddingTop: 56,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600' },
-  topbarTitle: { ...typography.label, color: colors.text.secondary },
-
   list: { padding: spacing.md, paddingBottom: 40 },
   emptyContainer: { paddingHorizontal: spacing.md, paddingBottom: 40 },
 

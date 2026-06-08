@@ -27,26 +27,27 @@ export async function resolveOwner(
   }
 
   try {
+    // El DNI ya no viaja en el JWT (PII): se resuelve desde la DB vía sub.
+    const client = await prisma.client.findUnique({
+      where: { id: req.auth.sub },
+      select: { id: true, document: true, firstName: true, lastName: true, address: true, countryId: true },
+    });
+
+    if (!client) {
+      return next(unauthorized());
+    }
+
     // Buscar Owner existente por document (DNI) del cliente
     let owner = await prisma.owner.findUnique({
-      where: { document: req.auth.document },
+      where: { document: client.document },
       select: { id: true, document: true },
     });
 
     if (!owner) {
       // Auto-crear Owner desde los datos del Cliente (MVP: cualquier cliente admitido puede ser dueño)
-      const client = await prisma.client.findUnique({
-        where: { id: req.auth.sub },
-        select: { firstName: true, lastName: true, address: true, countryId: true, id: true },
-      });
-
-      if (!client) {
-        return next(unauthorized());
-      }
-
       owner = await prisma.owner.create({
         data: {
-          document: req.auth.document,
+          document: client.document,
           name: `${client.firstName} ${client.lastName}`,
           address: client.address ?? undefined,
           countryId: client.countryId ?? undefined,

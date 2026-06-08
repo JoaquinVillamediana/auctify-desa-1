@@ -258,20 +258,17 @@ export async function createCollectionAuction(data: {
     });
 
     // Crear un CatalogItem por cada producto (lotNumber secuencial)
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
-      await tx.catalogItem.create({
-        data: {
-          catalogId: catalog.id,
-          productId: product.id,
-          lotNumber: i + 1,
-          basePrice: 0,
-          commission: 0,
-          status: "pending",
-          auctioned: false,
-        },
-      });
-    }
+    await tx.catalogItem.createMany({
+      data: products.map((product, i) => ({
+        catalogId: catalog.id,
+        productId: product.id,
+        lotNumber: i + 1,
+        basePrice: 0,
+        commission: 0,
+        status: "pending",
+        auctioned: false,
+      })),
+    });
 
     return {
       ...mapAuction(auction),
@@ -829,36 +826,65 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
 
   if (!auction) throw notFound("Subasta");
 
-  const session = await prisma.auctionSession.findFirst({
-    where: { auctionId, clientId, active: true },
-  });
+  const currentItemId = auction.currentItemId;
+  const hasCurrentItem = !!(currentItemId && auction.currentItem);
+
+  // Lecturas independientes en paralelo (hot-path de polling).
+  // Las consultas dependientes del ítem actual sólo se incluyen si hay ítem en curso.
+  const [
+    session,
+    connectedCount,
+    lastBidRow,
+    bidCount,
+    clientHasBid,
+    clientIsWinner,
+    lastEventRow,
+  ] = await Promise.all([
+    prisma.auctionSession.findFirst({
+      where: { auctionId, clientId, active: true },
+    }),
+    prisma.auctionSession.count({
+      where: { auctionId, active: true },
+    }),
+    hasCurrentItem
+      ? prisma.bid.findFirst({
+          where: { itemId: currentItemId! },
+          orderBy: { timestamp: "desc" },
+          select: { amount: true },
+        })
+      : Promise.resolve(null),
+    hasCurrentItem
+      ? prisma.bid.count({ where: { itemId: currentItemId! } })
+      : Promise.resolve(0),
+    hasCurrentItem
+      ? prisma.bid.findFirst({
+          where: { itemId: currentItemId!, attendee: { clientId } },
+        })
+      : Promise.resolve(null),
+    hasCurrentItem
+      ? prisma.bid.findFirst({
+          where: { itemId: currentItemId!, attendee: { clientId }, winner: true },
+        })
+      : Promise.resolve(null),
+    prisma.auctionEvent.findFirst({
+      where: { auctionId },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+
   if (!session) {
     throw new AppError(ErrorCode.NOT_CONNECTED, 403, "No estás conectado a esta subasta");
   }
 
-  const connectedCount = await prisma.auctionSession.count({
-    where: { auctionId, active: true },
-  });
-
   let currentItem = null;
-  if (auction.currentItemId && auction.currentItem) {
-    const item = auction.currentItem;
+  if (hasCurrentItem) {
+    const item = auction.currentItem!;
 
-    const bestBidRow = await prisma.bid.findFirst({
-      where: { itemId: item.id },
-      orderBy: { amount: "desc" },
-      include: { attendee: { select: { bidderNumber: true } } },
-    });
-
-    const lastBidRow = await prisma.bid.findFirst({
-      where: { itemId: item.id },
-      orderBy: { timestamp: "desc" },
-      select: { amount: true },
-    });
-
+    // Reutiliza la mejor puja incluida en el findUnique inicial
+    // (currentItem.bids con take:1, orderBy amount desc).
+    const bestBidRow = item.bids[0] ?? null;
     const bestBid = bestBidRow?.amount ?? null;
     const lastBidAmount = lastBidRow?.amount ?? null;
-    const bidCount = await prisma.bid.count({ where: { itemId: item.id } });
 
     const { minBidAllowed, maxBidAllowed } = computeRange(
       item,
@@ -880,35 +906,23 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
     };
   }
 
-  let youWereOutbid = false;
-  if (auction.currentItemId && currentItem) {
-    const attendee = await prisma.attendee.findUnique({
-      where: { auctionId_clientId: { auctionId, clientId } },
-    });
+  const youWereOutbid =
+    hasCurrentItem && clientHasBid !== null && clientIsWinner === null;
 
-    if (attendee) {
-      const clientHasBid = await prisma.bid.findFirst({
-        where: { itemId: auction.currentItemId, attendeeId: attendee.id },
-      });
-      const clientIsWinner = await prisma.bid.findFirst({
-        where: { itemId: auction.currentItemId, attendeeId: attendee.id, winner: true },
-      });
-      youWereOutbid = clientHasBid !== null && clientIsWinner === null;
+  let lastEvent = null;
+  if (lastEventRow) {
+    let parsedData: Record<string, unknown> = {};
+    try {
+      parsedData = JSON.parse(lastEventRow.data) as Record<string, unknown>;
+    } catch {
+      parsedData = {};
     }
+    lastEvent = {
+      type: lastEventRow.type,
+      timestamp: lastEventRow.createdAt.toISOString(),
+      data: parsedData,
+    };
   }
-
-  const lastEventRow = await prisma.auctionEvent.findFirst({
-    where: { auctionId },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const lastEvent = lastEventRow
-    ? {
-        type: lastEventRow.type,
-        timestamp: lastEventRow.createdAt.toISOString(),
-        data: JSON.parse(lastEventRow.data) as Record<string, unknown>,
-      }
-    : null;
 
   return {
     version: auction.version,

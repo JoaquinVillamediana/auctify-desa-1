@@ -79,8 +79,8 @@ export default function ItemDetailScreen() {
         contentContainerStyle={styles.thumbContent}
       >
         {photos.length > 1
-          ? photos.slice(1, 6).map((url, i) => (
-              <Image key={i} source={{ uri: url }} style={styles.thumb} resizeMode="cover" />
+          ? photos.slice(1, 6).map((url) => (
+              <Image key={url} source={{ uri: url }} style={styles.thumb} resizeMode="cover" />
             ))
           : [1, 2, 3, 4, 5].map((i) => (
               <View key={i} style={styles.thumbPlaceholder}>

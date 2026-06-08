@@ -6,26 +6,9 @@ import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { Button } from '@/components/Button';
 import { colors, typography, spacing } from '@/theme';
+import { STATUS_LABELS, STATUS_COLORS } from '@/lib/inclusionMeta';
 import type { InclusionRequest } from '@/api/types';
 import type { ApiError } from '@/api/client';
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendiente de revisión',
-  under_inspection: 'En inspección',
-  proposal_sent: 'Propuesta recibida',
-  accepted: 'Aceptado',
-  rejected: 'Rechazado',
-  proposal_rejected: 'Propuesta rechazada',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: colors.feedback.warning,
-  under_inspection: colors.feedback.info,
-  proposal_sent: colors.brand.primary,
-  accepted: colors.feedback.success,
-  rejected: colors.feedback.error,
-  proposal_rejected: colors.feedback.error,
-};
 
 export default function InclusionRequestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -180,10 +163,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
   content: { padding: spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
-  backBtn: { marginBottom: spacing.md },
-  backText: { ...typography.bodySmall, color: colors.brand.primary },
-  backLink: { ...typography.bodySmall, color: colors.brand.primary, marginTop: spacing.sm },
-  title: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.sm },
   badge: {
     alignSelf: 'flex-start',
     borderWidth: 1,

@@ -192,7 +192,6 @@ export async function activate(input: ActivateInput) {
   const payload = buildClientPayload(updatedClient);
   const jwtToken = signToken({
     sub: updatedClient.id,
-    document: updatedClient.document,
     category: updatedClient.category,
     roles: payload.roles,
   });
@@ -237,7 +236,6 @@ export async function login(input: LoginInput) {
   const payload = buildClientPayload(client);
   const jwtToken = signToken({
     sub: client.id,
-    document: client.document,
     category: client.category,
     roles: payload.roles,
   });

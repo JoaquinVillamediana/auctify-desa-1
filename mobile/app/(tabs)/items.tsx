@@ -6,27 +6,11 @@ import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
+import { StatCard } from '@/components/StatCard';
 import { colors, typography, spacing, radius } from '@/theme';
+import { STATUS_LABELS, STATUS_COLORS } from '@/lib/inclusionMeta';
 import type { InclusionRequest } from '@/api/types';
 import type { ApiError } from '@/api/client';
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendiente',
-  under_inspection: 'En inspección',
-  proposal_sent: 'Propuesta recibida',
-  accepted: 'Aceptado',
-  rejected: 'Rechazado',
-  proposal_rejected: 'Prop. rechazada',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: colors.feedback.warning,
-  under_inspection: colors.feedback.info,
-  proposal_sent: colors.brand.primary,
-  accepted: colors.feedback.success,
-  rejected: colors.feedback.error,
-  proposal_rejected: colors.feedback.error,
-};
 
 const IN_PROGRESS = ['pending', 'under_inspection', 'proposal_sent'];
 
@@ -63,7 +47,7 @@ export default function VenderScreen() {
 
   useFocusEffect(useCallback(() => { fetchRequests(); }, [fetchRequests]));
 
-  function renderItem({ item }: { item: InclusionRequestWithProduct }) {
+  const renderItem = useCallback(({ item }: { item: InclusionRequestWithProduct }) => {
     const statusColor = STATUS_COLORS[item.status] ?? colors.text.secondary;
     const thumb = item.product?.photos?.[0]?.photoUrl;
     const label = item.product?.catalogDescription ?? item.itemDescription;
@@ -96,7 +80,7 @@ export default function VenderScreen() {
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
       </TouchableOpacity>
     );
-  }
+  }, [router]);
 
   const enCurso = requests.filter((r) => IN_PROGRESS.includes(r.status)).length;
   const aceptadas = requests.filter((r) => r.status === 'accepted').length;
@@ -124,9 +108,9 @@ export default function VenderScreen() {
             <View>
               <Text style={styles.screenTitle}>Vender</Text>
               <View style={styles.statsRow}>
-                <StatCard value={enCurso} label="En curso" />
-                <StatCard value={aceptadas} label="Aceptadas" />
-                <StatCard value={requests.length} label="Total" />
+                <StatCard variant="pill" value={enCurso} label="En curso" />
+                <StatCard variant="pill" value={aceptadas} label="Aceptadas" />
+                <StatCard variant="pill" value={requests.length} label="Total" />
               </View>
               {requests.length > 0 && <Text style={styles.sectionLabel}>MIS PIEZAS</Text>}
             </View>
@@ -148,15 +132,6 @@ export default function VenderScreen() {
   );
 }
 
-function StatCard({ value, label }: { value: number; label: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
@@ -168,17 +143,6 @@ const styles = StyleSheet.create({
 
   screenTitle: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.md },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.background.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  statValue: { fontFamily: 'Inter_700Bold', fontSize: 22, color: colors.brand.primary },
-  statLabel: { ...typography.overline, color: colors.text.tertiary, fontSize: 10, marginTop: 2 },
   sectionLabel: { ...typography.overline, color: colors.text.tertiary, marginBottom: spacing.sm },
 
   card: {

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing, radius } from '@/theme';
+import { colors, typography, spacing, radius, shadows } from '@/theme';
+import { formatMoney } from '@/lib/money';
 import type { Auction, AuctionCatalog, Metrics, AuctionStatus, ClientCategory } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
@@ -35,11 +36,6 @@ interface FeedLot {
   category: ClientCategory;
   location?: string | null;
   startsAt: string;
-}
-
-function formatMoney(amount: number, currency: string): string {
-  const prefix = currency === 'USD' ? 'US$' : '$';
-  return `${prefix}${amount.toLocaleString('es-AR')}`;
 }
 
 /** Tiempo relativo hasta una fecha futura: "4 h", "2 d", "30 min". */
@@ -104,7 +100,10 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchHome() {
+  // Carga única del Home: métricas + lotes en vivo (open) + próximos (scheduled).
+  // Cada status trae su propio listado de subastas y luego se hace fan-out de catálogos;
+  // memoizada para no recrearla en cada render (la consumen el focus effect y el refresh).
+  const fetchHome = useCallback(async () => {
     try {
       const [m, live, upcoming] = await Promise.all([
         get<Metrics>('/me/metrics').catch(() => null),
@@ -118,25 +117,27 @@ export default function HomeScreen() {
     } catch (err) {
       setError((err as ApiError).message ?? 'No se pudo cargar el inicio.');
     }
-  }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       fetchHome().finally(() => setLoading(false));
-    }, [])
+    }, [fetchHome])
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchHome();
     setRefreshing(false);
+  }, [fetchHome]);
+
+  const remindMe = useCallback((lot: FeedLot) => {
+    Alert.alert('Recordatorio', `Te avisaremos cuando empiece la subasta de "${lot.title}".`);
   }, []);
 
-  const remindMe = (lot: FeedLot) =>
-    Alert.alert('Recordatorio', `Te avisaremos cuando empiece la subasta de "${lot.title}".`);
-
-  const header = (
+  const header = useMemo(
+    () => (
     <View>
       <View style={styles.statsRow}>
         <View style={[styles.statCard, styles.statCardAlt]}>
@@ -159,9 +160,12 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
     </View>
+    ),
+    [metrics, router]
   );
 
-  const footer =
+  const footer = useMemo(
+    () =>
     upcomingLots.length > 0 ? (
       <View style={styles.upcomingSection}>
         <Text style={styles.upcomingTitle}>Siguientes subastas</Text>
@@ -194,7 +198,9 @@ export default function HomeScreen() {
           </View>
         ))}
       </View>
-    ) : null;
+    ) : null,
+    [upcomingLots, remindMe]
+  );
 
   return (
     <View style={styles.container}>
@@ -277,14 +283,6 @@ export default function HomeScreen() {
   );
 }
 
-const CARD_SHADOW = {
-  shadowColor: '#0F172A',
-  shadowOpacity: 0.08,
-  shadowRadius: 16,
-  shadowOffset: { width: 0, height: 6 },
-  elevation: 3,
-};
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
   list: { padding: spacing.md, paddingBottom: spacing.xl },
@@ -320,7 +318,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border.default,
-    ...CARD_SHADOW,
+    ...shadows.cardStrong,
   },
   imageWrap: { position: 'relative' },
   image: { width: '100%', height: 180, backgroundColor: colors.background.secondary },
@@ -377,7 +375,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border.default,
-    ...CARD_SHADOW,
+    ...shadows.cardStrong,
   },
   upcomingImage: { width: '100%', height: 140, backgroundColor: colors.background.secondary },
   upcomingBadge: {

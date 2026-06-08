@@ -107,9 +107,6 @@ export default function PhotosScreen() {
 const THUMB_SIZE = 100;
 
 const styles = StyleSheet.create({
-  backBtn: { marginBottom: spacing.md },
-  backText: { ...typography.bodySmall, color: colors.brand.primary },
-  title: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.xs },
   subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.md },
   counter: { marginBottom: spacing.md },
   counterText: { ...typography.label, color: colors.text.secondary },

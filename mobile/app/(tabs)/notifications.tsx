@@ -13,7 +13,7 @@ import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing, radius } from '@/theme';
+import { colors, typography, spacing, radius, shadows } from '@/theme';
 import type { Notification, NotificationType } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
@@ -175,32 +175,9 @@ export default function NotificationsScreen() {
 
 // ── Estilos ─────────────────────────────────────────────────────────────────
 
-const CARD_SHADOW = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.06,
-  shadowRadius: 4,
-  elevation: 2,
-};
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
 
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    ...typography.heading2,
-    color: colors.text.primary,
-    flex: 1,
-  },
   unreadBadge: {
     backgroundColor: colors.feedback.error,
     borderRadius: radius.pill,
@@ -228,7 +205,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border.default,
-    ...CARD_SHADOW,
+    ...shadows.card,
   },
   cardUnread: {
     borderColor: colors.brand.primary,

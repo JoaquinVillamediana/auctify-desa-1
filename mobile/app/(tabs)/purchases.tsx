@@ -132,17 +132,6 @@ function paymentStripeStyle(status: string) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
 
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  headerTitle: { ...typography.heading2, color: colors.text.primary },
-  headerSub: { ...typography.caption, color: colors.text.tertiary, marginTop: 2 },
-
   list: { padding: spacing.md, paddingBottom: 40 },
   emptyContainer: { flex: 1, justifyContent: 'center' },
 
