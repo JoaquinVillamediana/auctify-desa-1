@@ -5,14 +5,17 @@ import { colors, spacing } from '@/theme';
 
 interface ScreenContainerProps {
   children: ReactNode;
-  /** Si es true (default) envuelve en ScrollView (útil para formularios). */
+  /** Envuelve en ScrollView (default true). `scrollable` es alias de `scroll`. */
   scroll?: boolean;
+  scrollable?: boolean;
+  /** Centra el contenido verticalmente (pantallas simples tipo onboarding). */
+  centered?: boolean;
 }
 
 /**
  * Contenedor base de pantalla: respeta el safe-area, aplica padding y fondo.
  */
-export function ScreenContainer({ children, scroll = true }: ScreenContainerProps) {
+export function ScreenContainer({ children, scroll, scrollable, centered = false }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
   const padding = {
     paddingTop: insets.top + spacing.md,
@@ -20,7 +23,10 @@ export function ScreenContainer({ children, scroll = true }: ScreenContainerProp
     paddingHorizontal: spacing.md,
   };
 
-  if (scroll) {
+  // Por defecto scrollable, salvo que sea una pantalla centrada.
+  const useScroll = (scrollable ?? scroll ?? true) && !centered;
+
+  if (useScroll) {
     return (
       <ScrollView
         style={styles.flex}
@@ -32,10 +38,11 @@ export function ScreenContainer({ children, scroll = true }: ScreenContainerProp
     );
   }
 
-  return <View style={[styles.flex, styles.content, padding]}>{children}</View>;
+  return <View style={[styles.flex, styles.content, centered && styles.centered, padding]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background.primary },
   content: { flexGrow: 1 },
+  centered: { justifyContent: 'center' },
 });
