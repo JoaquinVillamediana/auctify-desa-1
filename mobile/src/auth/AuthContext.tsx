@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ─── logout ───
 
   const logout = useCallback(async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await storage.deleteItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
     setTokenGetter(() => null);
