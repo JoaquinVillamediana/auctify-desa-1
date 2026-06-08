@@ -4,7 +4,7 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { AuthProvider } from '@/auth/AuthContext';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import { Loading } from '@/components/Loading';
+import { SplashScreen } from '@/components/SplashScreen';
 
 /**
  * Root layout: carga las fuentes del diseño (Manrope + Inter, del Figma `Auctify - DA1`),
@@ -23,7 +23,7 @@ export default function RootLayout() {
 
   // Esperamos a las fuentes; si fallan, igual renderizamos (fallback a fuente del sistema).
   if (!fontsLoaded && !fontError) {
-    return <Loading message="Cargando…" />;
+    return <SplashScreen />;
   }
 
   return (

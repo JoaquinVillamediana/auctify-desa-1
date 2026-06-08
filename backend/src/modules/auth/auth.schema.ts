@@ -51,13 +51,13 @@ export const activateSchema = z.object({
 
 /**
  * Schema de login.
- * Body: { document, password }
+ * Body: { email, password }
  */
 export const loginSchema = z.object({
   body: z.object({
-    document: z
-      .string({ required_error: "El DNI es obligatorio" })
-      .min(1, "El DNI no puede estar vacío"),
+    email: z
+      .string({ required_error: "El email es obligatorio" })
+      .email("El email no tiene un formato válido"),
     password: z
       .string({ required_error: "La contraseña es obligatoria" })
       .min(1, "La contraseña no puede estar vacía"),

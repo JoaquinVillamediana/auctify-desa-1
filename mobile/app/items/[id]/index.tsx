@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get, post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { Button } from '@/components/Button';
 import { colors, typography, spacing } from '@/theme';
@@ -77,15 +78,22 @@ export default function InclusionRequestDetailScreen() {
     );
   }
 
-  if (loading) return <Loading />;
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Solicitud" />
+        <Loading />
+      </View>
+    );
+  }
 
   if (error || !request) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>{error ?? 'Solicitud no encontrada'}</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backLink}>Volver</Text>
-        </TouchableOpacity>
+      <View style={styles.screen}>
+        <AppBar title="Solicitud" />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error ?? 'Solicitud no encontrada'}</Text>
+        </View>
       </View>
     );
   }
@@ -93,13 +101,9 @@ export default function InclusionRequestDetailScreen() {
   const statusColor = STATUS_COLORS[request.status] ?? colors.text.secondary;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>← Mis artículos</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Solicitud #{request.id}</Text>
-
+    <View style={styles.screen}>
+      <AppBar title={`Solicitud #${request.id}`} />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={[styles.badge, { backgroundColor: statusColor + '22', borderColor: statusColor }]}>
         <Text style={[styles.badgeText, { color: statusColor }]}>
           {STATUS_LABELS[request.status] ?? request.status}
@@ -167,13 +171,14 @@ export default function InclusionRequestDetailScreen() {
       <Text style={styles.date}>
         Creada el {new Date(request.createdAt).toLocaleDateString('es-AR')}
       </Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
-  content: { padding: spacing.md, paddingTop: 60 },
+  content: { padding: spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   backBtn: { marginBottom: spacing.md },
   backText: { ...typography.bodySmall, color: colors.brand.primary },

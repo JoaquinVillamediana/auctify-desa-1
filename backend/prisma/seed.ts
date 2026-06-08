@@ -260,8 +260,8 @@ async function main() {
   console.log("\n══════════════════════════════════════════════════");
   console.log("  CREDENCIALES SEED (solo para desarrollo)");
   console.log("══════════════════════════════════════════════════");
-  console.log(`  ADMIN    DNI: 00000001   pass: ${adminPassword}  category: platinum`);
-  console.log(`  POSTOR   DNI: 30111222   pass: ${clientPassword}  category: gold`);
+  console.log(`  ADMIN    email: ${adminClient.email}   pass: ${adminPassword}  (platinum)`);
+  console.log(`  POSTOR   email: ${goldClient.email}   pass: ${clientPassword}  (gold)`);
   console.log("══════════════════════════════════════════════════\n");
 }
 

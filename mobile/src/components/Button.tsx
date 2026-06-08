@@ -1,14 +1,16 @@
+import { type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
+  View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 
-type ButtonVariant = 'primary' | 'outline' | 'ghost';
+type ButtonVariant = 'primary' | 'accent' | 'outline' | 'ghost';
 
 interface ButtonProps {
   title: string;
@@ -16,13 +18,15 @@ interface ButtonProps {
   loading?: boolean;
   disabled?: boolean;
   variant?: ButtonVariant;
+  /** Icono opcional a la derecha del texto (ej: flecha en "INGRESAR →"). */
+  rightIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
 /**
  * Botón estándar de Auctify.
  * - `loading` muestra spinner y deshabilita (clave para "una puja a la vez", F05).
- * - Variantes: primary (relleno), outline (borde), ghost (sin fondo).
+ * - Variantes: primary (azul), accent (marrón remate), outline (borde), ghost (sin fondo).
  */
 export function Button({
   title,
@@ -30,9 +34,11 @@ export function Button({
   loading = false,
   disabled = false,
   variant = 'primary',
+  rightIcon,
   style,
 }: ButtonProps) {
   const isDisabled = disabled || loading;
+  const filled = variant === 'primary' || variant === 'accent';
 
   return (
     <Pressable
@@ -49,11 +55,14 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.text.inverse : colors.brand.primary} />
+        <ActivityIndicator color={filled ? colors.text.inverse : colors.brand.primary} />
       ) : (
-        <Text style={[styles.text, variant === 'primary' ? styles.textPrimary : styles.textBrand]}>
-          {title}
-        </Text>
+        <View style={styles.content}>
+          <Text style={[styles.text, filled ? styles.textInverse : styles.textBrand]}>
+            {title}
+          </Text>
+          {rightIcon ? <View style={styles.icon}>{rightIcon}</View> : null}
+        </View>
       )}
     </Pressable>
   );
@@ -61,19 +70,22 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    borderRadius: 10,
+    minHeight: 52,
+    borderRadius: radius.sm,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  content: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  icon: { justifyContent: 'center' },
   primary: { backgroundColor: colors.brand.primary },
+  accent: { backgroundColor: colors.brand.accent },
   outline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.brand.primary },
   ghost: { backgroundColor: 'transparent', minHeight: 0, paddingVertical: spacing.xs },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
   text: { ...typography.label },
-  textPrimary: { color: colors.text.inverse },
+  textInverse: { color: colors.text.inverse },
   textBrand: { color: colors.brand.primary },
 });

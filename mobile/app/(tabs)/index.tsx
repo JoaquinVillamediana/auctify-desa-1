@@ -1,307 +1,400 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
   FlatList,
   StyleSheet,
+  Image,
   TouchableOpacity,
   RefreshControl,
-  ScrollView,
+  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { get } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
+import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
 import { colors, typography, spacing, radius } from '@/theme';
-import type { Auction } from '@/api/types';
+import type { Auction, AuctionCatalog, Metrics, AuctionStatus, ClientCategory } from '@/api/types';
+import type { ApiError } from '@/api/client';
 
-type StatusFilter = 'all' | 'open' | 'scheduled' | 'closed';
+/** Lote del feed = ítem de catálogo + contexto de su subasta. */
+interface FeedLot {
+  id: number;
+  lotNumber: number;
+  title: string;
+  basePrice?: number | null;
+  status: string;
+  photo?: string | null;
+  auctionId: number;
+  currency: 'ARS' | 'USD';
+  auctionStatus: AuctionStatus;
+  category: ClientCategory;
+  location?: string | null;
+  startsAt: string;
+}
 
-const FILTER_LABELS: Record<StatusFilter, string> = {
-  all: 'Todas',
-  open: 'En curso',
-  scheduled: 'Próximas',
-  closed: 'Cerradas',
-};
+function formatMoney(amount: number, currency: string): string {
+  const prefix = currency === 'USD' ? 'US$' : '$';
+  return `${prefix}${amount.toLocaleString('es-AR')}`;
+}
 
-export default function AuctionsScreen() {
+/** Tiempo relativo hasta una fecha futura: "4 h", "2 d", "30 min". */
+function startsIn(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return 'pronto';
+  const min = Math.round(diff / 60000);
+  if (min < 60) return `${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} h`;
+  return `${Math.round(h / 24)} d`;
+}
+
+function lotsFromCatalogs(entries: ({ auction: Auction; catalog: AuctionCatalog } | null)[]): FeedLot[] {
+  const feed: FeedLot[] = [];
+  for (const entry of entries) {
+    if (!entry) continue;
+    for (const it of entry.catalog.items) {
+      if (it.status === 'sold' || it.status === 'unsold') continue;
+      feed.push({
+        id: it.id,
+        lotNumber: it.lotNumber,
+        title: it.catalogDescription ?? `Lote ${it.lotNumber}`,
+        basePrice: it.basePrice,
+        status: it.status,
+        photo: it.photo,
+        auctionId: entry.auction.id,
+        currency: entry.auction.currency,
+        auctionStatus: entry.auction.status,
+        category: entry.auction.category,
+        location: entry.auction.location,
+        startsAt: entry.auction.startsAt,
+      });
+    }
+  }
+  return feed;
+}
+
+async function fetchLotsFor(status: string): Promise<FeedLot[]> {
+  const auctions = await get<Auction[]>(`/auctions?status=${status}`);
+  const catalogs = await Promise.all(
+    auctions.map((a) =>
+      get<AuctionCatalog>(`/auctions/${a.id}/catalog`)
+        .then((c) => ({ auction: a, catalog: c }))
+        .catch(() => null)
+    )
+  );
+  return lotsFromCatalogs(catalogs);
+}
+
+/**
+ * Home (decisión D2) — feed de lotes en vivo + sección "Siguientes subastas".
+ * Nota de datos: el modelo no tiene timer por ítem (1 ítem activo por vez), así que las
+ * cards en vivo no muestran countdown; las próximas muestran "empieza en X" (real, desde startsAt).
+ */
+export default function HomeScreen() {
   const router = useRouter();
-  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [liveLots, setLiveLots] = useState<FeedLot[]>([]);
+  const [upcomingLots, setUpcomingLots] = useState<FeedLot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  async function fetchAuctions(status?: string) {
+  async function fetchHome() {
     try {
-      const path = status && status !== 'all' ? `/auctions?status=${status}` : '/auctions';
-      const data = await get<Auction[]>(path);
-      setAuctions(data);
+      const [m, live, upcoming] = await Promise.all([
+        get<Metrics>('/me/metrics').catch(() => null),
+        fetchLotsFor('open'),
+        fetchLotsFor('scheduled'),
+      ]);
+      setMetrics(m);
+      setLiveLots(live);
+      setUpcomingLots(upcoming);
       setError(null);
-    } catch {
-      setError('No se pudieron cargar las subastas.');
+    } catch (err) {
+      setError((err as ApiError).message ?? 'No se pudo cargar el inicio.');
     }
   }
 
-  useEffect(() => {
-    setLoading(true);
-    fetchAuctions(statusFilter).finally(() => setLoading(false));
-  }, [statusFilter]);
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchHome().finally(() => setLoading(false));
+    }, [])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchAuctions(statusFilter);
+    await fetchHome();
     setRefreshing(false);
-  }, [statusFilter]);
+  }, []);
 
-  if (loading) return <Loading />;
-  if (error) {
-    return (
-      <ErrorView
-        message={error}
-        onRetry={() => {
-          setLoading(true);
-          fetchAuctions(statusFilter).finally(() => setLoading(false));
-        }}
-      />
-    );
-  }
+  const remindMe = (lot: FeedLot) =>
+    Alert.alert('Recordatorio', `Te avisaremos cuando empiece la subasta de "${lot.title}".`);
+
+  const header = (
+    <View>
+      <View style={styles.statsRow}>
+        <View style={[styles.statCard, styles.statCardAlt]}>
+          <Text style={styles.statLabel}>TOTAL PARTICIPACIONES</Text>
+          <Text style={styles.statValue}>{metrics?.auctionsAttended ?? 0}</Text>
+        </View>
+        <View style={styles.statCard}>
+          <Text style={styles.statLabel}>SUBASTAS GANADAS</Text>
+          <Text style={styles.statValue}>{String(metrics?.auctionsWon ?? 0).padStart(2, '0')}</Text>
+        </View>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          <View style={styles.liveDot} />
+          <Text style={styles.sectionTitle}>Subastas en vivo</Text>
+        </View>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/subastas')} hitSlop={6}>
+          <Text style={styles.sectionLink}>Ver todo</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const footer =
+    upcomingLots.length > 0 ? (
+      <View style={styles.upcomingSection}>
+        <Text style={styles.upcomingTitle}>Siguientes subastas</Text>
+        {upcomingLots.map((lot) => (
+          <View key={lot.id} style={styles.upcomingCard}>
+            {lot.photo ? (
+              <Image source={{ uri: lot.photo }} style={styles.upcomingImage} />
+            ) : (
+              <View style={[styles.upcomingImage, styles.imagePlaceholder]}>
+                <Feather name="image" size={24} color={colors.text.tertiary} />
+              </View>
+            )}
+            <View style={styles.upcomingBadge}>
+              <Feather name="clock" size={11} color={colors.text.inverse} />
+              <Text style={styles.upcomingBadgeText}>EMPIEZA EN {startsIn(lot.startsAt)}</Text>
+            </View>
+            <View style={styles.upcomingBody}>
+              <Text style={styles.upcomingName} numberOfLines={1}>{lot.title}</Text>
+              <Text style={styles.upcomingEst}>
+                {lot.basePrice != null ? `Base ${formatMoney(lot.basePrice, lot.currency)}` : 'Base a confirmar'}
+              </Text>
+              <Button
+                title="RECORDARME"
+                variant="outline"
+                onPress={() => remindMe(lot)}
+                rightIcon={<Feather name="bell" size={15} color={colors.brand.primary} />}
+                style={styles.remindBtn}
+              />
+            </View>
+          </View>
+        ))}
+      </View>
+    ) : null;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.logo}>Auctify</Text>
-        <Text style={styles.logoSub}>subastas · mobile</Text>
-      </View>
-
-      {/* Status filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersRow}
-        contentContainerStyle={styles.filtersContent}
-      >
-        {(Object.keys(FILTER_LABELS) as StatusFilter[]).map((s) => (
-          <TouchableOpacity
-            key={s}
-            style={[styles.chip, statusFilter === s && styles.chipActive]}
-            onPress={() => setStatusFilter(s)}
-          >
-            <Text style={[styles.chipText, statusFilter === s && styles.chipTextActive]}>
-              {FILTER_LABELS[s]}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <FlatList
-        data={auctions}
-        keyExtractor={(item) => String(item.id)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={auctions.length === 0 ? styles.emptyContainer : styles.list}
-        ListEmptyComponent={
-          <EmptyState
-            title="Sin subastas disponibles"
-            message="No hay subastas con ese filtro. Probá con otro."
-          />
-        }
-        renderItem={({ item, index }) => {
-          const prev = index > 0 ? auctions[index - 1] : null;
-          const showLiveSection =
-            statusFilter === 'all' &&
-            item.status === 'open' &&
-            (prev === null || prev.status !== 'open');
-          const showUpcomingSection =
-            statusFilter === 'all' &&
-            item.status === 'scheduled' &&
-            (prev === null || prev.status !== 'scheduled');
-
-          return (
-            <>
-              {showLiveSection && (
-                <View style={styles.sectionRow}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.sectionLabel}>En vivo ahora</Text>
-                </View>
-              )}
-              {showUpcomingSection && (
-                <Text style={[styles.sectionLabel, { marginTop: spacing.sm }]}>Próximas</Text>
-              )}
-
-              <TouchableOpacity
-                style={[styles.card, item.status === 'open' && styles.cardLive]}
-                onPress={() => router.push(`/auction-detail/${item.id}`)}
-                activeOpacity={0.75}
-              >
-                {/* Left: image area */}
-                <View style={[styles.cardImg, item.status === 'open' && styles.cardImgLive]}>
-                  <Text style={styles.cardImgText}>{item.status === 'open' ? 'live' : 'img'}</Text>
-                </View>
-
-                {/* Right: info */}
-                <View style={styles.cardInfo}>
-                  <View style={styles.pillsRow}>
-                    <StatusPill status={item.status} />
-                    <View style={styles.pillOutline}>
-                      <Text style={styles.pillOutlineText}>{item.currency}</Text>
-                    </View>
-                    <View style={styles.pillHighlight}>
-                      <Text style={styles.pillHighlightText}>Cat. {item.category.toUpperCase()}</Text>
-                    </View>
+      <AppBar />
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorView
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            fetchHome().finally(() => setLoading(false));
+          }}
+        />
+      ) : (
+        <FlatList
+          data={liveLots}
+          keyExtractor={(l) => String(l.id)}
+          ListHeaderComponent={header}
+          ListFooterComponent={footer}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand.primary} />}
+          ListEmptyComponent={
+            <EmptyState
+              title="No hay lotes en vivo"
+              message="Cuando haya una subasta en curso vas a ver los lotes acá para pujar."
+            />
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push(`/item/${item.id}`)}>
+              <View style={styles.imageWrap}>
+                {item.photo ? (
+                  <Image source={{ uri: item.photo }} style={styles.image} />
+                ) : (
+                  <View style={[styles.image, styles.imagePlaceholder]}>
+                    <Feather name="image" size={28} color={colors.text.tertiary} />
                   </View>
-
-                  <Text style={styles.cardLocation} numberOfLines={1}>
-                    {item.location ?? 'Ubicación a confirmar'}
-                  </Text>
-                  <Text style={styles.cardDate}>
-                    {new Date(item.startsAt).toLocaleString('es-AR', {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </Text>
-                  {item.itemCount !== undefined && (
-                    <Text style={styles.cardMeta}>
-                      {item.itemCount} piezas · {item.attendeeCount ?? 0} asistentes
-                    </Text>
-                  )}
+                )}
+                <View style={styles.badgesRow}>
+                  {item.auctionStatus === 'open' ? (
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveBadgeDot} />
+                      <Text style={styles.liveBadgeText}>VIVO</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.catBadge}>
+                    <Text style={styles.catBadgeText}>{item.category.toUpperCase()}</Text>
+                  </View>
                 </View>
-              </TouchableOpacity>
-            </>
-          );
-        }}
-      />
+              </View>
+
+              <View style={styles.body}>
+                <Text style={styles.lotOverline}>LOTE {item.lotNumber}</Text>
+                <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
+                {item.location ? (
+                  <Text style={styles.location} numberOfLines={1}>{item.location}</Text>
+                ) : null}
+
+                <View style={styles.priceRow}>
+                  <View>
+                    <Text style={styles.priceLabel}>PRECIO BASE</Text>
+                    <Text style={styles.price}>
+                      {item.basePrice != null ? formatMoney(item.basePrice, item.currency) : '—'}
+                    </Text>
+                  </View>
+                  <Button
+                    title="PUJAR"
+                    variant="accent"
+                    onPress={() => router.push(`/auction/${item.auctionId}`)}
+                    rightIcon={<Feather name="arrow-right" size={16} color={colors.text.inverse} />}
+                    style={styles.cta}
+                  />
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 }
 
-function StatusPill({ status }: { status: string }) {
-  if (status === 'open') {
-    return (
-      <View style={styles.pillLive}>
-        <Text style={styles.pillLiveText}>● En vivo</Text>
-      </View>
-    );
-  }
-  if (status === 'scheduled') {
-    return (
-      <View style={styles.pillInfo}>
-        <Text style={styles.pillInfoText}>Próxima</Text>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.pillOutline}>
-      <Text style={styles.pillOutlineText}>Cerrada</Text>
-    </View>
-  );
-}
+const CARD_SHADOW = {
+  shadowColor: '#0F172A',
+  shadowOpacity: 0.08,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 6 },
+  elevation: 3,
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  logo: {
-    fontFamily: 'Manrope_800ExtraBold',
-    fontSize: 26,
-    color: colors.brand.primary,
-    letterSpacing: -0.5,
-  },
-  logoSub: { ...typography.caption, color: colors.text.tertiary, marginTop: 1 },
-
-  filtersRow: { maxHeight: 48, backgroundColor: colors.background.primary },
-  filtersContent: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    gap: spacing.xs,
-    alignItems: 'center',
-  },
-  chip: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.background.secondary,
-    borderWidth: 1,
-    borderColor: colors.border.strong,
-  },
-  chipActive: { backgroundColor: colors.brand.primary, borderColor: colors.brand.primary },
-  chipText: { ...typography.caption, color: colors.text.secondary, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
-
   list: { padding: spacing.md, paddingBottom: spacing.xl },
-  emptyContainer: { flex: 1, justifyContent: 'center' },
 
-  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.brand.primary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 84,
+    justifyContent: 'space-between',
+  },
+  statCardAlt: { backgroundColor: colors.brand.primaryAccent },
+  statLabel: { ...typography.overline, color: 'rgba(255,255,255,0.75)', fontSize: 10 },
+  statValue: { fontFamily: 'Inter_700Bold', fontSize: 30, color: colors.text.inverse, marginTop: spacing.sm },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.feedback.live },
-  sectionLabel: { ...typography.overline, color: colors.text.secondary, marginBottom: 8 },
+  sectionTitle: { ...typography.heading3, color: colors.text.primary },
+  sectionLink: { ...typography.label, color: colors.brand.primaryStrong },
 
   card: {
     backgroundColor: colors.background.card,
-    borderRadius: radius.sm,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border.default,
-    marginBottom: spacing.sm,
+    ...CARD_SHADOW,
+  },
+  imageWrap: { position: 'relative' },
+  image: { width: '100%', height: 180, backgroundColor: colors.background.secondary },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  badgesRow: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    right: spacing.sm,
     flexDirection: 'row',
-    overflow: 'hidden',
+    justifyContent: 'space-between',
   },
-  cardLive: { borderColor: colors.feedback.live },
-
-  cardImg: {
-    width: 72,
+  liveBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background.secondary,
-  },
-  cardImgLive: { backgroundColor: '#FEF2F2' },
-  cardImgText: { ...typography.caption, color: colors.text.tertiary },
-
-  cardInfo: { flex: 1, padding: spacing.sm },
-  pillsRow: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap', marginBottom: 6 },
-
-  pillLive: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
+    gap: 5,
     backgroundColor: colors.feedback.live,
-  },
-  pillLiveText: { fontSize: 11, color: '#fff', fontWeight: '700' },
-
-  pillInfo: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: radius.pill,
-    backgroundColor: colors.feedback.infoBackground,
+  },
+  liveBadgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' },
+  liveBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  catBadge: {
+    backgroundColor: 'rgba(15,23,42,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  catBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff', letterSpacing: 1 },
+
+  body: { padding: spacing.md },
+  lotOverline: { ...typography.overline, color: colors.text.tertiary, marginBottom: 2 },
+  title: { ...typography.heading3, color: colors.text.primary, marginBottom: 2 },
+  location: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.sm },
+
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+  },
+  priceLabel: { ...typography.overline, color: colors.text.tertiary, fontSize: 10 },
+  price: { ...typography.heading2, color: colors.brand.primary },
+  cta: { paddingHorizontal: spacing.lg },
+
+  // ── Siguientes subastas ──
+  upcomingSection: { marginTop: spacing.sm },
+  upcomingTitle: { ...typography.heading3, color: colors.text.primary, marginBottom: spacing.sm },
+  upcomingCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.feedback.info,
+    borderColor: colors.border.default,
+    ...CARD_SHADOW,
   },
-  pillInfoText: { ...typography.caption, color: colors.feedback.info, fontWeight: '700' },
-
-  pillOutline: {
+  upcomingImage: { width: '100%', height: 140, backgroundColor: colors.background.secondary },
+  upcomingBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(15,23,42,0.7)',
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border.strong,
   },
-  pillOutlineText: { ...typography.caption, color: colors.text.secondary },
-
-  pillHighlight: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: colors.brand.primaryLight,
-  },
-  pillHighlightText: { ...typography.caption, color: colors.brand.primary, fontWeight: '700' },
-
-  cardLocation: { ...typography.bodySmall, color: colors.text.primary, fontWeight: '600', marginBottom: 2 },
-  cardDate: { ...typography.caption, color: colors.text.secondary, marginBottom: 2 },
-  cardMeta: { ...typography.caption, color: colors.text.tertiary },
+  upcomingBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 1 },
+  upcomingBody: { padding: spacing.md },
+  upcomingName: { ...typography.heading3, color: colors.text.primary, marginBottom: 2 },
+  upcomingEst: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.sm },
+  remindBtn: { alignSelf: 'flex-start', paddingHorizontal: spacing.lg },
 });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get, post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
@@ -68,23 +69,31 @@ export default function InsuranceScreen() {
     }
   }
 
-  if (loading) return <Loading />;
-  if (error || !insurance) return <ErrorView message={error ?? 'Error'} onRetry={load} />;
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Custodia de mi pieza" />
+        <Loading />
+      </View>
+    );
+  }
+  if (error || !insurance) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Custodia de mi pieza" />
+        <ErrorView message={error ?? 'Error'} onRetry={load} />
+      </View>
+    );
+  }
 
   const estimatedDelta = newAmount && parseFloat(newAmount) > insurance.amount
     ? ((parseFloat(newAmount) - insurance.amount) * 0.02).toFixed(2)
     : null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Topbar */}
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.topbarTitle}>Custodia de mi pieza</Text>
-      </View>
-
+    <View style={styles.screen}>
+      <AppBar title="Custodia de mi pieza" />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Map / location placeholder */}
       <View style={styles.mapPlaceholder}>
         <Text style={styles.mapText}>mapa depósito</Text>
@@ -174,11 +183,13 @@ export default function InsuranceScreen() {
           </View>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background.primary },
   container: { flex: 1, backgroundColor: colors.background.primary },
   content: { paddingBottom: 40 },
 

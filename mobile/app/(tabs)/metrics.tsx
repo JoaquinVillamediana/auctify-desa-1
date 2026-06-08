@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { get } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
@@ -87,14 +88,15 @@ export default function MetricsScreen() {
     setRefreshing(false);
   }, []);
 
-  if (loading) return <Loading />;
+  const isEmpty = (metrics?.auctionsAttended ?? 0) === 0;
 
-  if (error) {
-    return (
-      <>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Mis métricas</Text>
-        </View>
+  return (
+    <View style={styles.screen}>
+      <AppBar title="Mis métricas" />
+
+      {loading ? (
+        <Loading />
+      ) : error ? (
         <ErrorView
           message={error}
           onRetry={() => {
@@ -102,19 +104,7 @@ export default function MetricsScreen() {
             fetchMetrics().finally(() => setLoading(false));
           }}
         />
-      </>
-    );
-  }
-
-  const isEmpty = (metrics?.auctionsAttended ?? 0) === 0;
-
-  return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mis métricas</Text>
-      </View>
-
-      {isEmpty ? (
+      ) : isEmpty ? (
         <EmptyState
           title="Todavía no participaste en ninguna subasta"
           message="Cuando te unas a una subasta, acá verás tus estadísticas de participación, pujas y ganancias."

@@ -8,15 +8,19 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { usePolling } from '@/hooks/usePolling';
 import { get, post } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 import type { AuctionLiveStatus, PaymentMethod } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
@@ -86,6 +90,7 @@ export default function AuctionLiveScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ amount: number; at: Date } | null>(null);
 
   // ── Estado del panel de remate (solo admins) ────────────────────────────
   const [panelExpanded, setPanelExpanded] = useState(false);
@@ -280,10 +285,9 @@ export default function AuctionLiveScreen() {
         { 'Idempotency-Key': idempotencyKey }
       );
 
-      // 201 — puja registrada
+      // 201 — puja registrada → modal de éxito
+      setSuccessInfo({ amount, at: new Date() });
       setBidAmount('');
-      setBidSuccess('¡Puja registrada!');
-      setTimeout(() => setBidSuccess(null), 3000);
     } catch (err) {
       const apiError = err as ApiError;
 
@@ -448,29 +452,45 @@ export default function AuctionLiveScreen() {
   // ── Renders de estado ─────────────────────────────────────────────────────
 
   if (connectState === 'idle' || connectState === 'connecting') {
-    return <Loading />;
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Subasta en vivo" />
+        <Loading />
+      </View>
+    );
   }
 
   if (connectState === 'error') {
     return (
-      <ErrorView
-        message={connectError ?? 'No se pudo conectar a la subasta.'}
-        onRetry={() => void connectToAuction()}
-      />
+      <View style={styles.screen}>
+        <AppBar title="Subasta en vivo" />
+        <ErrorView
+          message={connectError ?? 'No se pudo conectar a la subasta.'}
+          onRetry={() => void connectToAuction()}
+        />
+      </View>
     );
   }
 
   // connectState === 'connected'
   if (pollLoading && !liveStatus) {
-    return <Loading />;
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Subasta en vivo" />
+        <Loading />
+      </View>
+    );
   }
 
   if (pollError && !liveStatus) {
     return (
-      <ErrorView
-        message="No se pudo cargar el estado de la subasta."
-        onRetry={retryPoll}
-      />
+      <View style={styles.screen}>
+        <AppBar title="Subasta en vivo" />
+        <ErrorView
+          message="No se pudo cargar el estado de la subasta."
+          onRetry={retryPoll}
+        />
+      </View>
     );
   }
 
@@ -484,27 +504,24 @@ export default function AuctionLiveScreen() {
   const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* Barra de navegación */}
-      <View style={styles.navBar}>
-        <Button
-          title="← Volver"
-          variant="ghost"
-          onPress={handleDisconnect}
-          style={styles.backButton}
-        />
-        <View style={styles.connectedBadge}>
-          <Text style={styles.connectedText}>
-            {liveStatus?.connectedCount ?? '—'} conectados
-          </Text>
-        </View>
-      </View>
-
-      {/* Estado de la subasta */}
+    <View style={styles.screen}>
+      <AppBar
+        title="Subasta en vivo"
+        onBack={handleDisconnect}
+        rightAction={
+          <View style={styles.connectedBadge}>
+            <Text style={styles.connectedText}>
+              {liveStatus?.connectedCount ?? '—'} conectados
+            </Text>
+          </View>
+        }
+      />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Estado de la subasta */}
       <View style={styles.statusRow}>
         <View style={styles.liveDot} />
         <Text style={styles.statusLabel}>
@@ -801,7 +818,85 @@ export default function AuctionLiveScreen() {
           )}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+
+      {/* Estado optimista mientras se envía la puja (regla "una puja a la vez", F05) */}
+      <Modal visible={submitting} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <Text style={styles.sendingLabel}>TU PUJA</Text>
+            <Text style={styles.sendingAmount}>
+              {formatCurrency(parseFloat(bidAmount.replace(',', '.')) || 0)}
+            </Text>
+            <View style={styles.sendingRow}>
+              <ActivityIndicator color={colors.brand.primary} />
+              <Text style={styles.sendingText}>Enviando al sistema…</Text>
+            </View>
+            <View style={styles.importanteBox}>
+              <Text style={styles.importanteLabel}>IMPORTANTE</Text>
+              <Text style={styles.importanteText}>
+                No podés hacer otra puja hasta que el servidor confirme esta.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Puja exitosa */}
+      <Modal
+        visible={!!successInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSuccessInfo(null)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.successCheck}>
+              <Feather name="check" size={30} color={colors.text.inverse} />
+            </View>
+            <Text style={styles.successTitle}>¡Puja exitosa!</Text>
+            <View style={styles.winBadge}>
+              <View style={styles.winDot} />
+              <Text style={styles.winText}>Ganando</Text>
+            </View>
+
+            <View style={styles.successAmountBox}>
+              <Text style={styles.successAmountLabel}>Subasta ganadora actual</Text>
+              <Text style={styles.successAmount}>
+                {successInfo ? formatCurrency(successInfo.amount) : ''}
+              </Text>
+              <Text style={styles.successAmountSub}>Tu oferta es actualmente la más alta.</Text>
+            </View>
+
+            {item ? (
+              <View style={styles.successItem}>
+                <Text style={styles.successItemName} numberOfLines={1}>{item.catalogDescription}</Text>
+                <Text style={styles.successItemSub}>
+                  {successInfo
+                    ? successInfo.at.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
+                    : ''}
+                </Text>
+              </View>
+            ) : null}
+
+            <Button
+              title="Ver mis ofertas"
+              onPress={() => {
+                setSuccessInfo(null);
+                router.push('/(tabs)/mis-pujas');
+              }}
+              style={styles.successBtn}
+            />
+            <Button
+              title="Volver a la subasta"
+              variant="outline"
+              onPress={() => setSuccessInfo(null)}
+              style={styles.successBtn}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -845,13 +940,14 @@ function mapConnectError(err: ApiError): string {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background.primary },
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
   },
   content: {
     padding: spacing.md,
-    paddingTop: 60,
+    paddingTop: spacing.md,
     paddingBottom: 40,
   },
   navBar: {
@@ -1215,4 +1311,79 @@ const styles = StyleSheet.create({
   adminCloseAuctionBtn: {
     borderColor: colors.feedback.error,
   },
+
+  // ── Modales de puja (enviando / éxito) ──
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: colors.background.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  sendingLabel: { ...typography.overline, color: colors.text.tertiary },
+  sendingAmount: { ...typography.display, color: colors.text.primary, marginVertical: spacing.xs },
+  sendingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  sendingText: { ...typography.body, color: colors.text.secondary },
+  importanteBox: {
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border.strong,
+    borderStyle: 'dashed',
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+  },
+  importanteLabel: { ...typography.overline, color: colors.text.tertiary, marginBottom: 2 },
+  importanteText: { ...typography.bodySmall, color: colors.text.secondary },
+
+  successCheck: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.feedback.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  successTitle: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.xs },
+  winBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colors.feedback.successBackground,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    marginBottom: spacing.md,
+  },
+  winDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.feedback.success },
+  winText: { ...typography.caption, color: colors.feedback.success, fontWeight: '700' },
+  successAmountBox: {
+    width: '100%',
+    backgroundColor: colors.background.secondary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  successAmountLabel: { ...typography.bodySmall, color: colors.text.secondary },
+  successAmount: { ...typography.heading1, color: colors.brand.primary, marginVertical: 2 },
+  successAmountSub: { ...typography.caption, color: colors.text.tertiary },
+  successItem: {
+    width: '100%',
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    paddingTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  successItemName: { ...typography.label, color: colors.text.primary },
+  successItemSub: { ...typography.caption, color: colors.text.tertiary, marginTop: 2 },
+  successBtn: { width: '100%', marginTop: spacing.sm },
 });

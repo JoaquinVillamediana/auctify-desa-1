@@ -201,7 +201,7 @@ export async function activate(input: ActivateInput) {
 }
 
 export interface LoginInput {
-  document: string;
+  email: string;
   password: string;
 }
 
@@ -212,17 +212,17 @@ export interface LoginInput {
  */
 export async function login(input: LoginInput) {
   const client = await prisma.client.findUnique({
-    where: { document: input.document },
+    where: { email: input.email },
   });
 
-  // No revelar si el DNI existe (evitar enumeración)
+  // No revelar si el email existe (evitar enumeración)
   if (!client || !client.passwordHash) {
-    throw unauthorized("DNI o contraseña incorrectos");
+    throw unauthorized("Email o contraseña incorrectos");
   }
 
   const passwordMatch = await bcrypt.compare(input.password, client.passwordHash);
   if (!passwordMatch) {
-    throw unauthorized("DNI o contraseña incorrectos");
+    throw unauthorized("Email o contraseña incorrectos");
   }
 
   // Chequeos de negocio después de validar credenciales

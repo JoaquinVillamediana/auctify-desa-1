@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { get } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
@@ -36,23 +37,18 @@ export default function PurchasesScreen() {
     setRefreshing(false);
   }, []);
 
-  if (loading) return <Loading />;
-  if (error) {
-    return (
-      <ErrorView
-        message={error}
-        onRetry={() => { setLoading(true); fetchPurchases().finally(() => setLoading(false)); }}
-      />
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mis compras</Text>
-        <Text style={styles.headerSub}>{purchases.length} registros</Text>
-      </View>
+      <AppBar title="Mis compras" />
 
+      {loading ? (
+        <Loading />
+      ) : error ? (
+        <ErrorView
+          message={error}
+          onRetry={() => { setLoading(true); fetchPurchases().finally(() => setLoading(false)); }}
+        />
+      ) : (
       <FlatList
         data={purchases}
         keyExtractor={(item) => String(item.id)}
@@ -100,6 +96,7 @@ export default function PurchasesScreen() {
           </TouchableOpacity>
         )}
       />
+      )}
     </View>
   );
 }

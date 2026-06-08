@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { get, post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
@@ -95,14 +96,22 @@ export default function NotificationsScreen() {
     }
   }
 
-  if (loading) return <Loading />;
+  return (
+    <View style={styles.screen}>
+      <AppBar
+        title="Notificaciones"
+        rightAction={
+          unreadCount > 0 ? (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+            </View>
+          ) : undefined
+        }
+      />
 
-  if (error) {
-    return (
-      <>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Notificaciones</Text>
-        </View>
+      {loading ? (
+        <Loading />
+      ) : error ? (
         <ErrorView
           message={error}
           onRetry={() => {
@@ -110,23 +119,7 @@ export default function NotificationsScreen() {
             fetchNotifications().finally(() => setLoading(false));
           }}
         />
-      </>
-    );
-  }
-
-  return (
-    <View style={styles.screen}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notificaciones</Text>
-        {unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Lista */}
+      ) : (
       <FlatList
         data={notifications}
         keyExtractor={(item) => String(item.id)}
@@ -175,6 +168,7 @@ export default function NotificationsScreen() {
           );
         }}
       />
+      )}
     </View>
   );
 }

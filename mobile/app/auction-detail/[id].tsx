@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Linking, Alert, TouchableOpacity } 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
@@ -49,22 +50,31 @@ export default function AuctionDetailScreen() {
     }
   }
 
-  if (loading) return <Loading />;
-  if (error || !auction) return <ErrorView message={error ?? 'Error al cargar'} onRetry={load} />;
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Subasta" />
+        <Loading />
+      </View>
+    );
+  }
+  if (error || !auction) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Subasta" />
+        <ErrorView message={error ?? 'Error al cargar'} onRetry={load} />
+      </View>
+    );
+  }
 
   const isOpen = auction.status === 'open';
   const isScheduled = auction.status === 'scheduled';
   const canSeeStreaming = user?.admitted && auction.streamingUrl;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Topbar */}
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ Volver</Text>
-        </TouchableOpacity>
-      </View>
-
+    <View style={styles.screen}>
+      <AppBar title="Subasta" />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Pills row */}
       <View style={styles.pillsRow}>
         {isOpen ? (
@@ -150,7 +160,8 @@ export default function AuctionDetailScreen() {
           />
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -164,6 +175,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background.primary },
   container: { flex: 1, backgroundColor: colors.background.primary },
   content: { paddingBottom: 40 },
 

@@ -21,6 +21,7 @@ import { ApiError } from '@/api/client';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { colors, typography, spacing, radius } from '@/theme';
@@ -214,15 +215,20 @@ export default function PenaltiesScreen() {
   // ── Estados de la lista ──
 
   if (loading) {
-    return <Loading message="Cargando multas…" />;
+    return (
+      <View style={styles.screenWrap}>
+        <AppBar title="Mis multas" />
+        <Loading message="Cargando multas…" />
+      </View>
+    );
   }
 
   if (error) {
     return (
-      <ErrorView
-        message={error}
-        onRetry={fetchPenalties}
-      />
+      <View style={styles.screenWrap}>
+        <AppBar title="Mis multas" />
+        <ErrorView message={error} onRetry={fetchPenalties} />
+      </View>
     );
   }
 
@@ -230,10 +236,7 @@ export default function PenaltiesScreen() {
   const hasPending = penalties.some((p) => p.status === 'pending');
 
   return (
-    <ScreenContainer>
-      {/* Encabezado de pantalla */}
-      <Text style={styles.screenTitle}>Mis multas</Text>
-
+    <ScreenContainer header={<AppBar title="Mis multas" />}>
       {/* Banner de cuenta bloqueada — visible si hay multas pendientes.
           Se relaciona con el error CLIENT_BLOCKED en F04 (connect) y F05 (bids). */}
       {hasPending && (
@@ -272,6 +275,8 @@ export default function PenaltiesScreen() {
 // ─────────────── Estilos ───────────────
 
 const styles = StyleSheet.create({
+  screenWrap: { flex: 1, backgroundColor: colors.background.primary },
+
   // ── Pantalla ──
   screenTitle: {
     ...typography.heading2,

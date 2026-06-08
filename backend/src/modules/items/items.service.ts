@@ -79,7 +79,7 @@ export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
     include: {
       product: true,
       catalog: {
-        include: { auction: { select: { category: true } } },
+        include: { auction: { select: { id: true, category: true, status: true } } },
       },
     },
   });
@@ -109,6 +109,8 @@ export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
 
   return {
     ...mapItem(item, isAuthenticated),
+    auctionId: item.catalog.auction.id,
+    auctionStatus: item.catalog.auction.status,
     productDetail: {
       id: item.product.id,
       catalogDescription: item.product.catalogDescription,
@@ -428,4 +430,38 @@ export async function createBid(input: CreateBidInput) {
 
     return newBid;
   });
+}
+
+// ── GET /me/bids ────────────────────────────────────────────────────────────────
+
+/** Lista las pujas del cliente actual (vía sus attendees), más recientes primero. */
+export async function listMyBids(clientId: number) {
+  const bids = await prisma.bid.findMany({
+    where: { attendee: { clientId } },
+    orderBy: { timestamp: "desc" },
+    include: {
+      item: {
+        include: {
+          product: { include: { photos: { take: 1 } } },
+          catalog: {
+            include: { auction: { select: { id: true, currency: true, status: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  return bids.map((bid) => ({
+    id: bid.id,
+    itemId: bid.itemId,
+    amount: bid.amount,
+    winner: bid.winner,
+    timestamp: bid.timestamp.toISOString(),
+    lotNumber: bid.item.lotNumber,
+    title: bid.item.product.catalogDescription ?? bid.item.product.fullDescription,
+    photo: bid.item.product.photos[0]?.photoUrl ?? null,
+    auctionId: bid.item.catalog.auctionId,
+    auctionStatus: bid.item.catalog.auction.status,
+    currency: bid.item.catalog.auction.currency,
+  }));
 }

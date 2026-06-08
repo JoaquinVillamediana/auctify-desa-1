@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
@@ -29,8 +30,22 @@ export default function ItemDetailScreen() {
 
   useEffect(() => { load(); }, [id]);
 
-  if (loading) return <Loading />;
-  if (error || !item) return <ErrorView message={error ?? 'Error'} onRetry={load} />;
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Ítem" />
+        <Loading />
+      </View>
+    );
+  }
+  if (error || !item) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Ítem" />
+        <ErrorView message={error ?? 'Error'} onRetry={load} />
+      </View>
+    );
+  }
 
   const photos = item.product?.photos ?? [];
   const isActive = item.status === 'active';
@@ -44,15 +59,9 @@ export default function ItemDetailScreen() {
   ].filter(Boolean) as string[];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Topbar */}
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.topbarTitle}>Pieza #{item.lotNumber}</Text>
-      </View>
-
+    <View style={styles.screen}>
+      <AppBar title={`Pieza #${item.lotNumber}`} />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Main photo */}
       {photos.length > 0 ? (
         <Image source={{ uri: photos[0] }} style={styles.mainPhoto} resizeMode="cover" />
@@ -136,36 +145,33 @@ export default function ItemDetailScreen() {
         </View>
       )}
 
-      {/* CTA */}
-      {isActive && (
+      {/* CTA — ir al remate en vivo (o ver la subasta si está programada) */}
+      {item.auctionId != null && item.auctionStatus !== 'closed' && (
         <View style={styles.ctaRow}>
-          <Button
-            title="Ir a la subasta"
-            onPress={() => router.back()}
-          />
+          {item.auctionStatus === 'open' ? (
+            <Button
+              title="Ir a la subasta"
+              variant="accent"
+              onPress={() => router.push(`/auction/${item.auctionId}`)}
+            />
+          ) : (
+            <Button
+              title="Ver subasta"
+              variant="outline"
+              onPress={() => router.push(`/auction-detail/${item.auctionId}`)}
+            />
+          )}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background.primary },
   container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { paddingBottom: 40 },
-
-  topbar: {
-    paddingTop: 56,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600' },
-  topbarTitle: { ...typography.label, color: colors.text.secondary },
+  content: { paddingBottom: spacing.xxl },
 
   mainPhoto: { width: SCREEN_WIDTH, height: 220 },
   mainPhotoPlaceholder: {
@@ -203,18 +209,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     marginBottom: spacing.xs,
   },
-  livePillText: { fontSize: 11, color: '#fff', fontWeight: '700' },
+  livePillText: { fontSize: 11, color: colors.text.inverse, fontWeight: '700', letterSpacing: 0.5 },
   title: { ...typography.heading3, color: colors.text.primary, marginBottom: 4 },
   meta: { ...typography.bodySmall, color: colors.text.secondary },
 
   boxRow: {
     flexDirection: 'row',
+    alignItems: 'stretch',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
   infoBox: {
     flex: 1,
+    justifyContent: 'center',
     backgroundColor: colors.background.card,
     borderRadius: radius.sm,
     padding: spacing.sm,

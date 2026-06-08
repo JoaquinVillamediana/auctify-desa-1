@@ -140,3 +140,18 @@ export async function createBid(
     next(err);
   }
 }
+
+// ── GET /me/bids ────────────────────────────────────────────────────────────────
+
+export async function listMyBids(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const bids = await itemsService.listMyBids(req.auth!.sub);
+    res.status(200).json(bids);
+  } catch (err) {
+    next(err);
+  }
+}
