@@ -127,9 +127,6 @@ export default function NewItemScreen() {
 }
 
 const styles = StyleSheet.create({
-  backBtn: { marginBottom: spacing.md },
-  backText: { ...typography.bodySmall, color: colors.brand.primary },
-  title: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.xs },
   subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.lg },
   errorBanner: {
     backgroundColor: colors.feedback.errorBackground,

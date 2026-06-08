@@ -12,52 +12,12 @@ import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing, radius } from '@/theme';
+import { colors, typography, spacing, radius, shadows } from '@/theme';
+import { StatCard } from '@/components/StatCard';
+import { formatMoneyCompact } from '@/lib/money';
+import { CATEGORY_LABELS, CATEGORY_COLORS } from '@/lib/categoryMeta';
 import type { Metrics, ClientCategory } from '@/api/types';
 import type { ApiError } from '@/api/client';
-
-const CATEGORY_COLORS: Record<ClientCategory, string> = {
-  common: '#9CA3AF',
-  special: '#6B7280',
-  silver: '#94A3B8',
-  gold: '#F59E0B',
-  platinum: '#8B5CF6',
-};
-
-const CATEGORY_LABELS: Record<ClientCategory, string> = {
-  common: 'Común',
-  special: 'Especial',
-  silver: 'Silver',
-  gold: 'Gold',
-  platinum: 'Platinum',
-};
-
-function formatCurrency(amount: number): string {
-  if (amount >= 1_000_000) {
-    return `$${(amount / 1_000_000).toFixed(1)}M`;
-  }
-  if (amount >= 1_000) {
-    return `$${(amount / 1_000).toFixed(0)}K`;
-  }
-  return `$${amount.toFixed(0)}`;
-}
-
-interface StatCardProps {
-  value: string | number;
-  label: string;
-  accent?: boolean;
-}
-
-function StatCard({ value, label, accent = false }: StatCardProps) {
-  return (
-    <View style={[styles.statCard, accent && styles.statCardAccent]}>
-      <Text style={[styles.statValue, accent && styles.statValueAccent]} numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, accent && styles.statLabelAccent]}>{label}</Text>
-    </View>
-  );
-}
 
 export default function MetricsScreen() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -123,8 +83,8 @@ export default function MetricsScreen() {
           </View>
 
           <View style={styles.statGrid}>
-            <StatCard value={formatCurrency(metrics?.totalBidAmount ?? 0)} label="Total ofertado" accent />
-            <StatCard value={formatCurrency(metrics?.totalPaidAmount ?? 0)} label="Total pagado" accent />
+            <StatCard value={formatMoneyCompact(metrics?.totalBidAmount ?? 0)} label="Total ofertado" variant="accent" />
+            <StatCard value={formatMoneyCompact(metrics?.totalPaidAmount ?? 0)} label="Total pagado" variant="accent" />
           </View>
 
           {/* Desglose por categoría */}
@@ -166,25 +126,8 @@ export default function MetricsScreen() {
   );
 }
 
-const CARD_SHADOW = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.06,
-  shadowRadius: 4,
-  elevation: 2,
-};
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  headerTitle: { ...typography.heading2, color: colors.text.primary },
   content: { padding: spacing.md, paddingBottom: spacing.xl },
   sectionLabel: {
     ...typography.overline,
@@ -196,45 +139,13 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.background.card,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 88,
-    ...CARD_SHADOW,
-  },
-  statCardAccent: {
-    backgroundColor: colors.brand.primary,
-    borderColor: colors.brand.primary,
-  },
-  statValue: {
-    ...typography.heading2,
-    color: colors.brand.primary,
-    marginBottom: 4,
-  },
-  statValueAccent: {
-    color: '#FFFFFF',
-  },
-  statLabel: {
-    ...typography.caption,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  statLabelAccent: {
-    color: 'rgba(255,255,255,0.8)',
-  },
   tableCard: {
     backgroundColor: colors.background.card,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border.default,
     overflow: 'hidden',
-    ...CARD_SHADOW,
+    ...shadows.card,
   },
   tableHeader: {
     flexDirection: 'row',

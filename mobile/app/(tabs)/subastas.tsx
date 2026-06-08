@@ -17,25 +17,13 @@ import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
 import { colors, typography, spacing, radius } from '@/theme';
-import type { Auction, ClientCategory } from '@/api/types';
+import { CATEGORY_LABELS, type CategoryKey } from '@/lib/categoryMeta';
+import type { Auction } from '@/api/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - spacing.md * 2 - spacing.sm) / 2;
 
 type Currency = 'ARS' | 'USD';
-
-/** Clave de ruta de cada categoría del catálogo. */
-type CategoryKey = ClientCategory | 'colecciones';
-
-/** Etiquetas en español de cada categoría (mismo mapa que usa la pantalla de piezas). */
-const CATEGORY_LABELS: Record<CategoryKey, string> = {
-  common: 'Común',
-  special: 'Especial',
-  silver: 'Plata',
-  gold: 'Oro',
-  platinum: 'Platino',
-  colecciones: 'Colecciones',
-};
 
 /** Orden fijo de las tarjetas en la grilla. */
 const CATEGORY_ORDER: CategoryKey[] = [

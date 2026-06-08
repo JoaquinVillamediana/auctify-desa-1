@@ -5,17 +5,11 @@ import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/auth/AuthContext';
 import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
+import { StatCard } from '@/components/StatCard';
 import { get } from '@/api/client';
 import { colors, typography, spacing, radius } from '@/theme';
-import type { Metrics, ClientCategory } from '@/api/types';
-
-const CATEGORY_LABELS: Record<ClientCategory, string> = {
-  common: 'Común',
-  special: 'Especial',
-  silver: 'Silver',
-  gold: 'Gold',
-  platinum: 'Platinum',
-};
+import { CATEGORY_LABELS } from '@/lib/categoryMeta';
+import type { Metrics } from '@/api/types';
 
 /**
  * Perfil del cliente (F01 / F02 / F08).
@@ -74,9 +68,9 @@ export default function ProfileScreen() {
 
         {/* Stat pills */}
         <View style={styles.pillsRow}>
-          <StatPill value={metrics?.auctionsWon ?? 0} label="Victorias" />
-          <StatPill value={metrics?.auctionsAttended ?? 0} label="Activas" />
-          <StatPill value={metrics?.bidCount ?? 0} label="Ofertas" />
+          <StatCard variant="pill" value={metrics?.auctionsWon ?? 0} label="Victorias" />
+          <StatCard variant="pill" value={metrics?.auctionsAttended ?? 0} label="Activas" />
+          <StatCard variant="pill" value={metrics?.bidCount ?? 0} label="Ofertas" />
         </View>
 
         {/* Menú */}
@@ -120,15 +114,6 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>SALIR</Text>
         </Pressable>
       </ScrollView>
-    </View>
-  );
-}
-
-function StatPill({ value, label }: { value: number; label: string }) {
-  return (
-    <View style={styles.pill}>
-      <Text style={styles.pillValue}>{value}</Text>
-      <Text style={styles.pillLabel}>{label.toUpperCase()}</Text>
     </View>
   );
 }
@@ -197,17 +182,6 @@ const styles = StyleSheet.create({
   email: { ...typography.bodySmall, color: colors.text.tertiary, marginTop: spacing.sm },
 
   pillsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
-  pill: {
-    flex: 1,
-    backgroundColor: colors.background.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  pillValue: { fontFamily: 'Inter_700Bold', fontSize: 24, color: colors.brand.primary },
-  pillLabel: { ...typography.overline, color: colors.text.tertiary, fontSize: 10, marginTop: 2 },
 
   menu: {
     backgroundColor: colors.background.card,

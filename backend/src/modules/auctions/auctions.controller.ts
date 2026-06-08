@@ -37,7 +37,7 @@ export async function getAuction(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const detail = await auctionsService.getAuctionDetail(auctionId);
     res.status(200).json(detail);
   } catch (err) {
@@ -87,7 +87,7 @@ export async function updateAuction(
   next: NextFunction
 ): Promise<void> {
   try {
-    const id = req.params.id as unknown as number;
+    const id = Number(req.params.id);
     const result = await auctionsService.updateAuction(id, req.body);
     res.status(200).json(result);
   } catch (err) {
@@ -103,7 +103,7 @@ export async function getAuctionCatalog(
   next: NextFunction
 ): Promise<void> {
   try {
-    const id = req.params.id as unknown as number;
+    const id = Number(req.params.id);
     const result = await auctionsService.getAuctionCatalog(id, !!req.auth);
     res.status(200).json(result);
   } catch (err) {
@@ -119,7 +119,7 @@ export async function getStreaming(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const clientId = req.auth!.sub;
     const result = await auctionsService.getStreamingUrl(auctionId, clientId);
     res.status(200).json(result);
@@ -140,7 +140,7 @@ export async function registerAttendee(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const isAdmin = req.auth!.roles.includes("ADMIN");
     const clientId =
       isAdmin && req.body.clientId ? req.body.clientId : req.auth!.sub;
@@ -160,7 +160,7 @@ export async function listAttendees(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const attendees = await auctionsService.listAttendees(auctionId);
     res.status(200).json(attendees);
   } catch (err) {
@@ -176,7 +176,7 @@ export async function connect(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const clientId = req.auth!.sub;
     const session = await auctionsService.connectToAuction(auctionId, clientId);
     res.status(200).json(session);
@@ -193,7 +193,7 @@ export async function disconnect(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const clientId = req.auth!.sub;
     await auctionsService.disconnectFromAuction(auctionId, clientId);
     res.status(204).send();
@@ -210,7 +210,7 @@ export async function getLiveStatus(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const clientId = req.auth!.sub;
     const status = await auctionsService.getLiveStatus(auctionId, clientId);
     res.status(200).json(status);
@@ -227,8 +227,8 @@ export async function openItem(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
-    const itemId = req.params.itemId as unknown as number;
+    const auctionId = Number(req.params.id);
+    const itemId = Number(req.params.itemId);
     const result = await auctionsService.openItem(auctionId, itemId);
     res.status(200).json(result);
   } catch (err) {
@@ -244,8 +244,8 @@ export async function closeItem(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
-    const itemId = req.params.itemId as unknown as number;
+    const auctionId = Number(req.params.id);
+    const itemId = Number(req.params.itemId);
     const result = await auctionsService.closeItem(auctionId, itemId);
     res.status(200).json(result);
   } catch (err) {
@@ -261,7 +261,7 @@ export async function closeAuction(
   next: NextFunction
 ): Promise<void> {
   try {
-    const auctionId = req.params.id as unknown as number;
+    const auctionId = Number(req.params.id);
     const result = await auctionsService.closeAuction(auctionId);
     res.status(200).json(result);
   } catch (err) {

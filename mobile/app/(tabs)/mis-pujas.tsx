@@ -15,13 +15,9 @@ import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
 import { colors, typography, spacing, radius } from '@/theme';
+import { formatMoney } from '@/lib/money';
 import type { MyBid } from '@/api/types';
 import type { ApiError } from '@/api/client';
-
-function formatMoney(amount: number, currency: string): string {
-  const prefix = currency === 'USD' ? 'US$' : '$';
-  return `${prefix}${amount.toLocaleString('es-AR')}`;
-}
 
 /**
  * Tab "Mis pujas" — pujas del cliente actual (GET /me/bids).
@@ -117,13 +113,6 @@ export default function MisPujasScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-  screenTitle: {
-    ...typography.heading2,
-    color: colors.text.primary,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
   emptyContainer: { flexGrow: 1, justifyContent: 'center' },
 

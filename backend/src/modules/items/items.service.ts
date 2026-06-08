@@ -86,16 +86,18 @@ export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
 
   if (!item) throw notFound("Ítem");
 
-  const bestBidRow = await prisma.bid.findFirst({
-    where: { itemId },
-    orderBy: { amount: "desc" },
-    select: { amount: true },
-  });
-  const lastBidRow = await prisma.bid.findFirst({
-    where: { itemId },
-    orderBy: { timestamp: "desc" },
-    select: { amount: true },
-  });
+  const [bestBidRow, lastBidRow] = await Promise.all([
+    prisma.bid.findFirst({
+      where: { itemId },
+      orderBy: { amount: "desc" },
+      select: { amount: true },
+    }),
+    prisma.bid.findFirst({
+      where: { itemId },
+      orderBy: { timestamp: "desc" },
+      select: { amount: true },
+    }),
+  ]);
 
   const bestBid = bestBidRow?.amount ?? null;
   const lastBidAmount = lastBidRow?.amount ?? null;

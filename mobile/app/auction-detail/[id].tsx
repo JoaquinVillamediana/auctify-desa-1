@@ -179,16 +179,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
   content: { paddingBottom: 40 },
 
-  topbar: {
-    paddingTop: 56,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.card,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600' },
-
   pillsRow: {
     flexDirection: 'row',
     gap: spacing.xs,
