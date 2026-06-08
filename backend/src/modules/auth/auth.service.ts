@@ -63,20 +63,24 @@ function sanitizeClient(client: {
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
+  paymentMethods?: Array<{ id: number }>;
 }) {
+  const { paymentMethods, ...clientData } = client;
+
   return {
-    id: client.id,
-    document: client.document,
-    firstName: client.firstName,
-    lastName: client.lastName,
-    email: client.email,
-    photoUrl: client.photoUrl,
-    admitted: client.admitted,
-    category: client.category,
-    blocked: client.blocked,
-    active: client.active,
-    createdAt: client.createdAt,
-    updatedAt: client.updatedAt,
+    id: clientData.id,
+    document: clientData.document,
+    firstName: clientData.firstName,
+    lastName: clientData.lastName,
+    email: clientData.email,
+    photoUrl: clientData.photoUrl,
+    admitted: clientData.admitted,
+    category: clientData.category,
+    blocked: clientData.blocked,
+    active: clientData.active,
+    createdAt: clientData.createdAt,
+    updatedAt: clientData.updatedAt,
+    hasVerifiedPaymentMethod: paymentMethods ? paymentMethods.length > 0 : false,
   };
 }
 
@@ -185,6 +189,12 @@ export async function activate(input: ActivateInput) {
     return tx.client.update({
       where: { id: client.id },
       data: { passwordHash },
+      include: {
+        paymentMethods: {
+          where: { status: "verified" },
+          select: { id: true },
+        },
+      },
     });
   });
 
@@ -211,6 +221,12 @@ export interface LoginInput {
 export async function login(input: LoginInput) {
   const client = await prisma.client.findUnique({
     where: { email: input.email },
+    include: {
+      paymentMethods: {
+        where: { status: "verified" },
+        select: { id: true },
+      },
+    },
   });
 
   // No revelar si el email existe (evitar enumeración)
@@ -261,13 +277,7 @@ export async function me(clientId: number) {
     throw notFound("Cliente");
   }
 
-  const { paymentMethods, ...clientData } = client;
-
-  return {
-    ...sanitizeClient(clientData),
-    // Dato derivado — ver docs/02-data-model.md §4
-    hasVerifiedPaymentMethod: paymentMethods.length > 0,
-  };
+  return sanitizeClient(client);
 }
 
 // ── Función utilitaria para el módulo clients (admisión) ─────────────────────

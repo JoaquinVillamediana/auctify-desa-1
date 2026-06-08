@@ -17,15 +17,16 @@ import type { Metrics } from '@/api/types';
  */
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, refreshMe } = useAuth();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
 
   useFocusEffect(
     useCallback(() => {
+      void refreshMe();
       get<Metrics>('/me/metrics')
         .then(setMetrics)
         .catch(() => setMetrics(null));
-    }, [])
+    }, [refreshMe])
   );
 
   if (loading) return <Loading />;

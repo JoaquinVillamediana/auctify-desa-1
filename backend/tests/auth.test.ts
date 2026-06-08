@@ -295,6 +295,7 @@ describe("Happy path: register → admitir → activate → login → /me", () =
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe("string");
     expect(res.body.user.document).toBe(dni);
+    expect(typeof res.body.user.hasVerifiedPaymentMethod).toBe("boolean");
   });
 
   it("GET /auth/me retorna el usuario con hasVerifiedPaymentMethod", async () => {
