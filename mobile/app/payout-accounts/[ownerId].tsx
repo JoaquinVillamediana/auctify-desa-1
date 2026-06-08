@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get, post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
@@ -61,18 +62,26 @@ export default function PayoutAccountsScreen() {
     }
   }
 
-  if (loading) return <Loading />;
-  if (error) return <ErrorView message={error} onRetry={load} />;
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <AppBar title="Cuentas de cobro" />
+        <Loading />
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <AppBar title="Cuentas de cobro" />
+        <ErrorView message={error} onRetry={load} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Topbar */}
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.topbarTitle}>Cuentas de cobro</Text>
-      </View>
+      <AppBar title="Cuentas de cobro" />
 
       <FlatList
         data={accounts}

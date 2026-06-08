@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { Field } from '@/components/Field';
 import { Button } from '@/components/Button';
@@ -59,12 +60,7 @@ export default function DeclareScreen() {
   }
 
   return (
-    <ScreenContainer scrollable>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>← Volver</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Declaraciones</Text>
+    <ScreenContainer scrollable header={<AppBar title="Declaraciones" />}>
       <Text style={styles.subtitle}>Paso 3 de 3 — Leé y aceptá antes de enviar</Text>
 
       {error ? (

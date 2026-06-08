@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { Field } from '@/components/Field';
 import { Button } from '@/components/Button';
@@ -57,12 +58,7 @@ export default function NewItemScreen() {
   }
 
   return (
-    <ScreenContainer scrollable>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>← Volver</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Nuevo artículo</Text>
+    <ScreenContainer scrollable header={<AppBar title="Nuevo artículo" />}>
       <Text style={styles.subtitle}>Paso 1 de 3 — Datos del bien</Text>
 
       {errors.general ? (

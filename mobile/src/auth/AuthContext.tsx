@@ -25,8 +25,8 @@ export interface RegisterForm {
 export interface AuthContextValue {
   user: Client | null;
   loading: boolean;
-  /** Inicia sesion con DNI y password. Guarda el JWT en SecureStore. */
-  login: (document: string, password: string) => Promise<void>;
+  /** Inicia sesion con email y password. Guarda el JWT en SecureStore. */
+  login: (email: string, password: string) => Promise<void>;
   /** Registro etapa 1 (multipart). */
   register: (form: RegisterForm) => Promise<void>;
   /** Activacion etapa 2: token del mail + nueva password. Guarda JWT. */
@@ -98,9 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ─── login ───
 
-  const login = useCallback(async (document: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const data = await post<{ token: string; user: Client }>('/auth/login', {
-      document,
+      email,
       password,
     });
     await persistToken(data.token);

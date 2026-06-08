@@ -88,7 +88,7 @@ export async function login(
 ): Promise<void> {
   try {
     const result = await authService.login({
-      document: req.body.document,
+      email: req.body.email,
       password: req.body.password,
     });
 

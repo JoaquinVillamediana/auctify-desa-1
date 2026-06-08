@@ -24,6 +24,8 @@ import inclusionRequestsRouter from "../modules/inclusion-requests/inclusion-req
 import metricsRouter from "../modules/metrics/metrics.routes";
 import notificationsRouter from "../modules/notifications/notifications.routes";
 import countriesRouter from "../modules/countries/countries.routes";
+import * as itemsController from "../modules/items/items.controller";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -48,6 +50,9 @@ router.use("/auctions", auctionsRouter);
 
 // ── Items / Bids (F03/F05) ────────────────────────────────────────────────────
 router.use("/items", itemsRouter);
+
+// ── Mis pujas (F05) — listado de pujas del cliente actual ──────────────────────
+router.get("/me/bids", requireAuth, itemsController.listMyBids);
 
 // ── Sale Records (F07) ────────────────────────────────────────────────────────
 // GET  /sale-records

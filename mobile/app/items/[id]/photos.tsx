@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndi
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { postMultipart } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { ScreenContainer } from '@/components/ScreenContainer';
 import { Button } from '@/components/Button';
 import { colors, typography, spacing } from '@/theme';
@@ -58,12 +59,7 @@ export default function PhotosScreen() {
   const ready = photos.length >= MIN_PHOTOS;
 
   return (
-    <ScreenContainer>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Text style={styles.backText}>← Volver</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.title}>Fotos del artículo</Text>
+    <ScreenContainer header={<AppBar title="Fotos del artículo" />}>
       <Text style={styles.subtitle}>Paso 2 de 3 — Cargá al menos 6 fotos</Text>
 
       <View style={styles.counter}>

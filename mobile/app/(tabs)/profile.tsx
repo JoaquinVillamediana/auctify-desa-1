@@ -1,12 +1,15 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, Alert } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/auth/AuthContext';
-import { ScreenContainer } from '@/components/ScreenContainer';
-import { Button } from '@/components/Button';
+import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
-import { colors, typography, spacing } from '@/theme';
+import { get } from '@/api/client';
+import { colors, typography, spacing, radius } from '@/theme';
+import type { Metrics, ClientCategory } from '@/api/types';
 
-const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<ClientCategory, string> = {
   common: 'Común',
   special: 'Especial',
   silver: 'Silver',
@@ -15,193 +18,248 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 /**
- * Perfil del cliente (F01 / F02).
- * Muestra los datos del usuario del AuthContext (hidratados desde GET /auth/me).
- * Acciones: logout, agregar medio de pago (TODO→F02).
+ * Perfil del cliente (F01 / F02 / F08).
+ * Avatar + nombre + 3 stat pills (de /me/metrics) + menú con iconos + logout.
  */
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      get<Metrics>('/me/metrics')
+        .then(setMetrics)
+        .catch(() => setMetrics(null));
+    }, [])
+  );
 
   if (loading) return <Loading />;
-
-  if (!user) {
-    // No deberia ocurrir: el layout raiz redirige si no hay sesion
-    return null;
-  }
+  if (!user) return null;
 
   async function handleLogout() {
     await logout();
     router.replace('/(auth)/login');
   }
 
-  return (
-    <ScreenContainer>
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarInitial}>
-            {user.name?.charAt(0).toUpperCase() ?? 'U'}
-          </Text>
-        </View>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.document}>DNI: {user.document}</Text>
-        {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
-      </View>
+  const initial = user.name?.charAt(0).toUpperCase() ?? 'U';
 
-      {/* Categoria y estado */}
-      <View style={styles.infoSection}>
-        <InfoRow label="Categoría" value={user.category ? CATEGORY_LABELS[user.category] ?? user.category : '—'} />
-        <InfoRow label="Estado" value={user.admitted ? 'Admitido' : 'Pendiente de admisión'} />
-        <InfoRow
-          label="Medio de pago verificado"
-          value={user.hasVerifiedPaymentMethod ? 'Sí' : 'No'}
-          valueColor={user.hasVerifiedPaymentMethod ? colors.feedback.success : colors.feedback.error}
-        />
-        {user.blocked && (
-          <InfoRow label="Cuenta" value="Bloqueada" valueColor={colors.feedback.error} />
+  return (
+    <View style={styles.container}>
+      <AppBar />
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Header: avatar + nombre + categoría */}
+        <View style={styles.header}>
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarInitial}>{initial}</Text>
+            </View>
+            <Pressable
+              style={styles.editBadge}
+              hitSlop={6}
+              onPress={() => Alert.alert('Editar perfil', 'Función próximamente disponible.')}
+              accessibilityLabel="Editar perfil"
+            >
+              <Feather name="edit-2" size={12} color={colors.text.inverse} />
+            </Pressable>
+          </View>
+          <Text style={styles.name}>{user.name}</Text>
+          <View style={styles.categoryChip}>
+            <Text style={styles.categoryChipText}>
+              {user.category ? CATEGORY_LABELS[user.category] ?? user.category : '—'}
+            </Text>
+          </View>
+          {user.email ? <Text style={styles.email}>{user.email}</Text> : null}
+        </View>
+
+        {/* Stat pills */}
+        <View style={styles.pillsRow}>
+          <StatPill value={metrics?.auctionsWon ?? 0} label="Victorias" />
+          <StatPill value={metrics?.auctionsAttended ?? 0} label="Activas" />
+          <StatPill value={metrics?.bidCount ?? 0} label="Ofertas" />
+        </View>
+
+        {/* Menú */}
+        <View style={styles.menu}>
+          <MenuRow
+            icon="settings"
+            title="Configuración"
+            subtitle="Seguridad y preferencias"
+            onPress={() => Alert.alert('Configuración', 'Función próximamente disponible.')}
+          />
+          <MenuRow
+            icon="credit-card"
+            title="Métodos de pago"
+            subtitle="Métodos de pago habilitados"
+            onPress={() => router.push('/payment-methods')}
+          />
+          <MenuRow
+            icon="clock"
+            title="Historial"
+            subtitle="Historial de pagos y subastas"
+            onPress={() => router.push('/(tabs)/purchases')}
+          />
+        </View>
+
+        {!user.hasVerifiedPaymentMethod && (
+          <View style={styles.warningBanner}>
+            <Feather name="alert-circle" size={16} color={colors.feedback.warning} />
+            <Text style={styles.warningText}>
+              Necesitás al menos un medio de pago verificado para pujar.
+            </Text>
+          </View>
         )}
-      </View>
 
-      {/* Acciones */}
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.actionRow}
-          onPress={() => router.push('/payment-methods')}
+        {/* Logout */}
+        <Pressable
+          style={({ pressed }) => [styles.logout, pressed && styles.logoutPressed]}
+          onPress={handleLogout}
+          accessibilityRole="button"
         >
-          <Text style={styles.actionLabel}>Medios de pago</Text>
-          <Text style={styles.actionArrow}>›</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionRow}
-          onPress={() => router.push('/penalties')}
-        >
-          <Text style={styles.actionLabel}>Mis multas</Text>
-          <Text style={styles.actionArrow}>›</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Button
-        title="Cerrar sesión"
-        variant="outline"
-        onPress={handleLogout}
-        style={styles.logoutButton}
-      />
-
-      {!user.hasVerifiedPaymentMethod && (
-        <View style={styles.warningBanner}>
-          <Text style={styles.warningText}>
-            Necesitas al menos un medio de pago verificado para pujar. Agregá uno en "Medios de pago".
-          </Text>
-        </View>
-      )}
-    </ScreenContainer>
-  );
-}
-
-function InfoRow({
-  label,
-  value,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
-  return (
-    <View style={infoStyles.row}>
-      <Text style={infoStyles.label}>{label}</Text>
-      <Text style={[infoStyles.value, valueColor ? { color: valueColor } : null]}>{value}</Text>
+          <Feather name="log-out" size={18} color={colors.feedback.error} />
+          <Text style={styles.logoutText}>SALIR</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
 
-const infoStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-  },
-  label: {
-    ...typography.body,
-    color: colors.text.secondary,
-  },
-  value: {
-    ...typography.body,
-    color: colors.text.primary,
-    fontWeight: '600',
-  },
-});
+function StatPill({ value, label }: { value: number; label: string }) {
+  return (
+    <View style={styles.pill}>
+      <Text style={styles.pillValue}>{value}</Text>
+      <Text style={styles.pillLabel}>{label.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function MenuRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+}: {
+  icon: keyof typeof Feather.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={styles.menuIcon}>
+        <Feather name={icon} size={20} color={colors.brand.primary} />
+      </View>
+      <View style={styles.menuTextWrap}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        <Text style={styles.menuSubtitle}>{subtitle}</Text>
+      </View>
+      <Feather name="chevron-right" size={20} color={colors.text.tertiary} />
+    </TouchableOpacity>
+  );
+}
 
 const styles = StyleSheet.create({
-  header: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-    marginBottom: spacing.md,
-  },
+  container: { flex: 1, backgroundColor: colors.background.primary },
+  content: { padding: spacing.md, paddingBottom: spacing.xl },
+
+  header: { alignItems: 'center', paddingVertical: spacing.lg },
+  avatarWrap: { marginBottom: spacing.md },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: colors.brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
   },
-  avatarInitial: {
-    ...typography.heading2,
-    color: '#FFFFFF',
+  avatarInitial: { fontFamily: 'Inter_700Bold', fontSize: 40, color: colors.text.inverse },
+  editBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.brand.primaryStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.background.primary,
   },
-  name: {
-    ...typography.heading3,
-    color: colors.text.primary,
-    marginBottom: 2,
+  name: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.xs },
+  categoryChip: {
+    backgroundColor: colors.brand.primaryLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
   },
-  document: {
-    ...typography.bodySmall,
-    color: colors.text.secondary,
+  categoryChipText: { ...typography.overline, color: colors.brand.primary },
+  email: { ...typography.bodySmall, color: colors.text.tertiary, marginTop: spacing.sm },
+
+  pillsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  pill: {
+    flex: 1,
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
-  email: {
-    ...typography.bodySmall,
-    color: colors.text.tertiary,
+  pillValue: { fontFamily: 'Inter_700Bold', fontSize: 24, color: colors.brand.primary },
+  pillLabel: { ...typography.overline, color: colors.text.tertiary, fontSize: 10, marginTop: 2 },
+
+  menu: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    overflow: 'hidden',
   },
-  infoSection: {
-    marginBottom: spacing.md,
-  },
-  actions: {
-    marginBottom: spacing.md,
-  },
-  actionRow: {
+  menuRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },
-  actionLabel: {
-    ...typography.body,
-    color: colors.text.primary,
+  menuIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    backgroundColor: colors.brand.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
   },
-  actionArrow: {
-    ...typography.heading2,
-    color: colors.text.tertiary,
-  },
-  logoutButton: {
-    marginTop: spacing.md,
-  },
+  menuTextWrap: { flex: 1 },
+  menuTitle: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+  menuSubtitle: { ...typography.caption, color: colors.text.secondary, marginTop: 1 },
+
   warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     backgroundColor: colors.feedback.warningBackground,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     padding: spacing.sm,
     marginTop: spacing.md,
   },
-  warningText: {
-    ...typography.bodySmall,
-    color: colors.feedback.warning,
-    lineHeight: 20,
+  warningText: { ...typography.bodySmall, color: colors.feedback.warning, flex: 1, lineHeight: 18 },
+
+  logout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.feedback.error,
+    borderStyle: 'dashed',
   },
+  logoutPressed: { opacity: 0.6 },
+  logoutText: { ...typography.label, color: colors.feedback.error, letterSpacing: 1 },
 });

@@ -146,6 +146,22 @@ export interface Bid {
   paymentMethodId: number;
 }
 
+// ─────────────── MyBid (GET /me/bids) ───────────────
+
+export interface MyBid {
+  id: number;
+  itemId: number;
+  amount: number;
+  winner: boolean;
+  timestamp: string;
+  lotNumber: number;
+  title: string;
+  photo?: string | null;
+  auctionId: number;
+  auctionStatus: AuctionStatus;
+  currency: 'ARS' | 'USD';
+}
+
 // ─────────────── PaymentMethod ───────────────
 
 export type PaymentMethodType = 'bank_account' | 'credit_card' | 'certified_check';
@@ -192,6 +208,8 @@ export interface Metrics {
   auctionsWon: number;
   totalBidAmount: number;
   totalPaidAmount: number;
+  /** Cantidad total de pujas realizadas por el cliente. */
+  bidCount: number;
   byCategory: Array<{
     category: ClientCategory;
     attended: number;
@@ -243,6 +261,8 @@ export interface CatalogItemFull {
   bestBid?: number | null;
   minBidAllowed?: number | null;
   maxBidAllowed?: number | null;
+  auctionId?: number;
+  auctionStatus?: AuctionStatus;
   product?: {
     id: number;
     fullDescription: string;

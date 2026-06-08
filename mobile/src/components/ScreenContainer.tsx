@@ -10,15 +10,19 @@ interface ScreenContainerProps {
   scrollable?: boolean;
   /** Centra el contenido verticalmente (pantallas simples tipo onboarding). */
   centered?: boolean;
+  /** Header fijo arriba (ej. <AppBar/>). Si se pasa, el contenido no aplica inset superior. */
+  header?: ReactNode;
 }
 
 /**
  * Contenedor base de pantalla: respeta el safe-area, aplica padding y fondo.
+ * Si se pasa `header`, lo fija arriba (fuera del scroll) y omite el inset superior
+ * del contenido — así el AppBar maneja el notch sin duplicar espacio.
  */
-export function ScreenContainer({ children, scroll, scrollable, centered = false }: ScreenContainerProps) {
+export function ScreenContainer({ children, scroll, scrollable, centered = false, header }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
   const padding = {
-    paddingTop: insets.top + spacing.md,
+    paddingTop: header ? spacing.md : insets.top + spacing.md,
     paddingBottom: insets.bottom + spacing.lg,
     paddingHorizontal: spacing.md,
   };
@@ -26,19 +30,28 @@ export function ScreenContainer({ children, scroll, scrollable, centered = false
   // Por defecto scrollable, salvo que sea una pantalla centrada.
   const useScroll = (scrollable ?? scroll ?? true) && !centered;
 
-  if (useScroll) {
+  const body = useScroll ? (
+    <ScrollView
+      style={styles.flex}
+      contentContainerStyle={[styles.content, padding]}
+      keyboardShouldPersistTaps="handled"
+    >
+      {children}
+    </ScrollView>
+  ) : (
+    <View style={[styles.flex, styles.content, centered && styles.centered, padding]}>{children}</View>
+  );
+
+  if (header) {
     return (
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={[styles.content, padding]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
+      <View style={styles.flex}>
+        {header}
+        {body}
+      </View>
     );
   }
 
-  return <View style={[styles.flex, styles.content, centered && styles.centered, padding]}>{children}</View>;
+  return body;
 }
 
 const styles = StyleSheet.create({

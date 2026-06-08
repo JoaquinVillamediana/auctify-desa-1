@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get, patch, post } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
@@ -111,8 +112,22 @@ export default function PurchaseDetailScreen() {
     }
   }
 
-  if (loading) return <Loading />;
-  if (error || !purchase) return <ErrorView message={error ?? 'Error'} onRetry={() => router.back()} />;
+  if (loading) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Compra" />
+        <Loading />
+      </View>
+    );
+  }
+  if (error || !purchase) {
+    return (
+      <View style={styles.screen}>
+        <AppBar title="Compra" />
+        <ErrorView message={error ?? 'Error'} onRetry={() => router.back()} />
+      </View>
+    );
+  }
 
   const total = purchase.amount + purchase.commission + (purchase.shippingCost ?? 0);
   const isPending = purchase.paymentStatus === 'pending';
@@ -120,15 +135,9 @@ export default function PurchaseDetailScreen() {
   const isFailed = purchase.paymentStatus === 'failed';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Topbar */}
-      <View style={styles.topbar}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.topbarTitle}>Factura #{purchase.id}</Text>
-      </View>
-
+    <View style={styles.screen}>
+      <AppBar title={`Factura #${purchase.id}`} />
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Payment status banner */}
       <View style={[styles.statusBanner, isPaid ? styles.bannerPaid : isFailed ? styles.bannerFailed : styles.bannerPending]}>
         <Text style={styles.statusText}>
@@ -263,11 +272,13 @@ export default function PurchaseDetailScreen() {
           Pagado el {new Date(purchase.paidAt).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}
         </Text>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background.primary },
   container: { flex: 1, backgroundColor: colors.background.primary },
   content: { paddingBottom: 40 },
 

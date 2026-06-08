@@ -2,9 +2,11 @@ import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { get } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
+import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 import type { InclusionRequest } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
@@ -26,6 +28,8 @@ const STATUS_COLORS: Record<string, string> = {
   proposal_rejected: colors.feedback.error,
 };
 
+const IN_PROGRESS = ['pending', 'under_inspection', 'proposal_sent'];
+
 type InclusionRequestWithProduct = InclusionRequest & {
   product?: {
     catalogDescription?: string | null;
@@ -33,7 +37,12 @@ type InclusionRequestWithProduct = InclusionRequest & {
   };
 };
 
-export default function ItemsScreen() {
+/**
+ * Tab "Vender" (decisión: el wireframe de Vendedor ocupa el 3er tab; "Mis pujas" pasó al drawer).
+ * Stat cards (En curso / Aceptadas / Total) + lista de piezas (solicitudes de inclusión) +
+ * CTA fijo "Proponer nueva pieza". Estilo de la app aplicado al layout del wireframe.
+ */
+export default function VenderScreen() {
   const router = useRouter();
   const [requests, setRequests] = useState<InclusionRequestWithProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,13 +55,12 @@ export default function ItemsScreen() {
       const data = await get<InclusionRequestWithProduct[]>('/inclusion-requests');
       setRequests(data);
     } catch (err) {
-      setError((err as ApiError).message ?? 'No se pudieron cargar tus artículos.');
+      setError((err as ApiError).message ?? 'No se pudieron cargar tus piezas.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Recargar al volver a la tab
   useFocusEffect(useCallback(() => { fetchRequests(); }, [fetchRequests]));
 
   function renderItem({ item }: { item: InclusionRequestWithProduct }) {
@@ -77,36 +85,25 @@ export default function ItemsScreen() {
 
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle} numberOfLines={2}>{label}</Text>
-
           <View style={[styles.badge, { backgroundColor: statusColor + '22', borderColor: statusColor }]}>
             <Text style={[styles.badgeText, { color: statusColor }]}>
               {STATUS_LABELS[item.status] ?? item.status}
             </Text>
           </View>
-
-          {hasProposal && (
-            <Text style={styles.proposalCta}>Ver propuesta →</Text>
-          )}
-
-          <Text style={styles.date}>
-            {new Date(item.createdAt).toLocaleDateString('es-AR')}
-          </Text>
+          {hasProposal && <Text style={styles.proposalCta}>Ver propuesta →</Text>}
         </View>
+
+        <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
       </TouchableOpacity>
     );
   }
 
+  const enCurso = requests.filter((r) => IN_PROGRESS.includes(r.status)).length;
+  const aceptadas = requests.filter((r) => r.status === 'accepted').length;
+
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Mis artículos</Text>
-        <TouchableOpacity
-          style={styles.newBtn}
-          onPress={() => router.push('/items/new')}
-        >
-          <Text style={styles.newBtnText}>+ Nuevo</Text>
-        </TouchableOpacity>
-      </View>
+      <AppBar />
 
       {loading ? (
         <Loading />
@@ -123,71 +120,101 @@ export default function ItemsScreen() {
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           contentContainerStyle={requests.length === 0 ? styles.emptyContainer : styles.list}
+          ListHeaderComponent={
+            <View>
+              <Text style={styles.screenTitle}>Vender</Text>
+              <View style={styles.statsRow}>
+                <StatCard value={enCurso} label="En curso" />
+                <StatCard value={aceptadas} label="Aceptadas" />
+                <StatCard value={requests.length} label="Total" />
+              </View>
+              {requests.length > 0 && <Text style={styles.sectionLabel}>MIS PIEZAS</Text>}
+            </View>
+          }
           ListEmptyComponent={
             <EmptyState
-              title="Aún no tenés artículos"
-              message="Acá vas a ver el estado de tus solicitudes de inclusión en subastas."
-              actionLabel="Solicitar inclusión"
-              onAction={() => router.push('/items/new')}
+              title="Aún no tenés piezas"
+              message="Proponé tu primera pieza para incluirla en una subasta."
             />
           }
         />
       )}
+
+      {/* CTA fijo arriba del tab bar */}
+      <View style={styles.ctaBar}>
+        <Button title="+ Proponer nueva pieza" onPress={() => router.push('/items/new')} />
+      </View>
+    </View>
+  );
+}
+
+function StatCard({ value, label }: { value: number; label: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: colors.background.primary,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.default,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitle: { ...typography.heading2, color: colors.text.primary },
-  newBtn: {
-    backgroundColor: colors.brand.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: 20,
-  },
-  newBtnText: { ...typography.bodySmall, color: '#fff', fontWeight: '600' },
-  list: { padding: spacing.md, gap: spacing.sm },
-  emptyContainer: { flex: 1, padding: spacing.md },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   errorText: { ...typography.body, color: colors.feedback.error, textAlign: 'center', marginBottom: spacing.sm },
   retryLink: { ...typography.bodySmall, color: colors.brand.primary },
+
+  list: { padding: spacing.md, paddingBottom: 100 },
+  emptyContainer: { flexGrow: 1, padding: spacing.md, paddingBottom: 100 },
+
+  screenTitle: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.md },
+  statsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+  },
+  statValue: { fontFamily: 'Inter_700Bold', fontSize: 22, color: colors.brand.primary },
+  statLabel: { ...typography.overline, color: colors.text.tertiary, fontSize: 10, marginTop: 2 },
+  sectionLabel: { ...typography.overline, color: colors.text.tertiary, marginBottom: spacing.sm },
+
   card: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.background.card,
-    borderRadius: 12,
+    borderRadius: radius.md,
     overflow: 'hidden',
     marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border.default,
   },
-  thumb: { width: 80, height: 80 },
-  thumbPlaceholder: {
-    backgroundColor: colors.background.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  thumb: { width: 72, height: 72 },
+  thumbPlaceholder: { backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center' },
   thumbIcon: { fontSize: 24 },
-  cardBody: { flex: 1, padding: spacing.sm, justifyContent: 'space-between' },
-  cardTitle: { ...typography.label, color: colors.text.primary, marginBottom: spacing.xs },
+  cardBody: { flex: 1, padding: spacing.sm, gap: 4 },
+  cardTitle: { ...typography.label, color: colors.text.primary },
   badge: {
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: spacing.xs,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 2,
-    marginBottom: spacing.xs,
   },
-  badgeText: { fontSize: 11, fontWeight: '600' },
-  proposalCta: { ...typography.bodySmall, color: colors.brand.primary, fontWeight: '600', marginBottom: spacing.xs },
-  date: { ...typography.caption, color: colors.text.tertiary },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+  proposalCta: { ...typography.caption, color: colors.brand.primary, fontWeight: '600' },
+  statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: spacing.md },
+
+  ctaBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: spacing.md,
+    backgroundColor: colors.background.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+  },
 });

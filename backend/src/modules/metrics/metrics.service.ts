@@ -15,6 +15,7 @@ export async function computeMetrics(clientId: number) {
     paidRecords,
     attendeesWithAuction,
     wonRecordsWithAuction,
+    bidCount,
   ] = await Promise.all([
     prisma.attendee.count({ where: { clientId } }),
     prisma.saleRecord.count({ where: { clientId, boughtByCompany: false } }),
@@ -34,6 +35,7 @@ export async function computeMetrics(clientId: number) {
       where: { clientId, boughtByCompany: false },
       select: { auction: { select: { category: true } } },
     }),
+    prisma.bid.count({ where: { attendee: { clientId } } }),
   ]);
 
   const totalBidAmount = bidAggregate._sum.amount ?? 0;
@@ -60,5 +62,5 @@ export async function computeMetrics(clientId: number) {
     won: stats.won,
   }));
 
-  return { auctionsAttended, auctionsWon, totalBidAmount, totalPaidAmount, byCategory };
+  return { auctionsAttended, auctionsWon, totalBidAmount, totalPaidAmount, bidCount, byCategory };
 }

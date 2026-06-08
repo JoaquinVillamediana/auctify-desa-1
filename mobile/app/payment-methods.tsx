@@ -25,9 +25,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Stack } from 'expo-router';
-
+import { Feather } from '@expo/vector-icons';
 import { get, post, del, ApiError } from '@/api/client';
+import { AppBar } from '@/components/AppBar';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
@@ -80,6 +80,12 @@ const TYPE_LABELS: Record<PaymentMethodType, string> = {
   certified_check: 'Cheque certificado',
 };
 
+const TYPE_ICONS: Record<PaymentMethodType, keyof typeof Feather.glyphMap> = {
+  bank_account: 'briefcase',
+  credit_card: 'credit-card',
+  certified_check: 'file-text',
+};
+
 const STATUS_LABELS: Record<PaymentStatus, string> = {
   pending: 'Pendiente',
   verified: 'Verificado',
@@ -106,8 +112,10 @@ const PAYMENT_TYPES: PaymentMethodType[] = [
 /** Badge visual de estado: pending (amarillo) / verified (verde) / rejected (rojo). */
 function StatusBadge({ status }: { status: PaymentStatus }) {
   const palette = STATUS_COLORS[status];
+  const icon = status === 'verified' ? 'check-circle' : status === 'pending' ? 'clock' : 'x-circle';
   return (
     <View style={[styles.badge, { backgroundColor: palette.bg }]}>
+      <Feather name={icon} size={12} color={palette.text} />
       <Text style={[styles.badgeText, { color: palette.text }]}>
         {STATUS_LABELS[status]}
       </Text>
@@ -148,47 +156,34 @@ function PaymentCard({ method, onDelete, onVerifyDev, isDev }: PaymentCardProps)
 
   return (
     <View style={styles.card}>
-      {/* Encabezado: tipo + badge de estado */}
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{TYPE_LABELS[method.type]}</Text>
+      <View style={styles.cardMain}>
+        <View style={styles.iconBox}>
+          <Feather name={TYPE_ICONS[method.type]} size={20} color={colors.brand.primary} />
+        </View>
+        <View style={styles.cardInfo}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {method.bank ?? TYPE_LABELS[method.type]}
+          </Text>
+          <Text style={styles.cardDetail} numberOfLines={1}>{method.detail}</Text>
+          {method.reservedAmount != null ? (
+            <Text style={styles.cardMeta}>
+              Reservado: {method.currency} {method.reservedAmount.toLocaleString('es-AR')}
+            </Text>
+          ) : null}
+        </View>
         <StatusBadge status={method.status} />
       </View>
-
-      {/* Detalle y moneda */}
-      <Text style={styles.cardDetail}>{method.detail}</Text>
-      <Text style={styles.cardMeta}>Moneda: {method.currency}</Text>
-
-      {/* Banco (solo cuenta bancaria) */}
-      {method.bank ? (
-        <Text style={styles.cardMeta}>Banco: {method.bank}</Text>
-      ) : null}
-
-      {/* Monto reservado (solo cheque certificado) */}
-      {method.reservedAmount != null ? (
-        <Text style={styles.cardMeta}>
-          Monto reservado: {method.currency} {method.reservedAmount.toLocaleString('es-AR')}
-        </Text>
-      ) : null}
 
       {/* Motivo de rechazo si corresponde */}
       {method.status === 'rejected' && method.rejectionReason ? (
         <View style={styles.rejectionBox}>
-          <Text style={styles.rejectionText}>
-            Motivo: {method.rejectionReason}
-          </Text>
+          <Text style={styles.rejectionText}>Motivo: {method.rejectionReason}</Text>
         </View>
       ) : null}
 
       {/* Acciones */}
       <View style={styles.cardActions}>
-        <Button
-          title="Eliminar"
-          variant="ghost"
-          onPress={handleDelete}
-          style={styles.deleteBtn}
-        />
-
-        {/* Botón dev de verificación — solo en desarrollo y solo si está pendiente */}
+        <Button title="Eliminar" variant="ghost" onPress={handleDelete} style={styles.deleteBtn} />
         {isDev && method.status === 'pending' && onVerifyDev ? (
           <Button
             title="Verificar [DEV]"
@@ -363,28 +358,30 @@ export default function PaymentMethodsScreen() {
 
   if (loadingList) {
     return (
-      <>
-        <Stack.Screen options={{ title: 'Mis medios de pago' }} />
+      <View style={styles.screenWrap}>
+        <AppBar title="Medios de pago" />
         <Loading message="Cargando medios de pago..." />
-      </>
+      </View>
     );
   }
 
   if (listError) {
     return (
-      <>
-        <Stack.Screen options={{ title: 'Mis medios de pago' }} />
+      <View style={styles.screenWrap}>
+        <AppBar title="Medios de pago" />
         <ErrorView message={listError} onRetry={loadMethods} />
-      </>
+      </View>
     );
   }
 
   const hasVerified = methods.some((m) => m.status === 'verified');
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Mis medios de pago' }} />
-      <ScreenContainer>
+    <ScreenContainer header={<AppBar title="Medios de pago" />}>
+        <Text style={styles.subtitle}>
+          Gestioná de forma segura los métodos de pago que vas a usar.
+        </Text>
+
         {/* Banner de aviso si no hay medio verificado */}
         {!hasVerified && methods.length > 0 ? (
           <View style={styles.warningBanner}>
@@ -418,8 +415,7 @@ export default function PaymentMethodsScreen() {
         {/* Botón para mostrar el formulario (cuando ya hay medios) */}
         {methods.length > 0 && !showForm ? (
           <Button
-            title="Agregar medio de pago"
-            variant="outline"
+            title="+ Agregar nuevo método"
             onPress={() => setShowForm(true)}
             style={styles.addBtn}
           />
@@ -549,14 +545,15 @@ export default function PaymentMethodsScreen() {
             </View>
           </View>
         ) : null}
-      </ScreenContainer>
-    </>
+    </ScreenContainer>
   );
 }
 
 // ─────────────── Estilos ───────────────
 
 const styles = StyleSheet.create({
+  screenWrap: { flex: 1, backgroundColor: colors.background.primary },
+
   // Banner de aviso sin medio verificado
   warningBanner: {
     backgroundColor: colors.feedback.warningBackground,
@@ -571,6 +568,8 @@ const styles = StyleSheet.create({
     color: colors.feedback.warning,
   },
 
+  subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.md },
+
   // Tarjeta de medio de pago
   card: {
     backgroundColor: colors.background.card,
@@ -580,21 +579,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border.strong,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  cardMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  iconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.brand.primaryLight,
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    justifyContent: 'center',
   },
+  cardInfo: { flex: 1 },
   cardTitle: {
     ...typography.label,
     color: colors.text.primary,
-    flex: 1,
   },
   cardDetail: {
-    ...typography.body,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
+    ...typography.bodySmall,
+    color: colors.text.secondary,
   },
   cardMeta: {
     ...typography.caption,
@@ -619,13 +620,17 @@ const styles = StyleSheet.create({
 
   // Badge de estado
   badge: {
-    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
+    paddingVertical: 3,
   },
   badgeText: {
     ...typography.caption,
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 11,
   },
 
   // Caja de motivo de rechazo
