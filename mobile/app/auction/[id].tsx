@@ -7,7 +7,6 @@ import {
   Alert,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
   Modal,
 } from 'react-native';
@@ -643,11 +642,13 @@ export default function AuctionLiveScreen() {
           {/* Lista desplegable de medios de pago */}
           {showPaymentSelector && (
             <View style={styles.paymentDropdown}>
-              <FlatList
-                data={paymentMethods}
-                keyExtractor={(m) => String(m.id)}
-                renderItem={({ item: method }) => (
+              <ScrollView
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {paymentMethods.map((method) => (
                   <TouchableOpacity
+                    key={method.id}
                     style={[
                       styles.paymentOption,
                       method.id === selectedPaymentMethodId && styles.paymentOptionSelected,
@@ -668,8 +669,8 @@ export default function AuctionLiveScreen() {
                       {paymentMethodLabel(method)}
                     </Text>
                   </TouchableOpacity>
-                )}
-              />
+                ))}
+              </ScrollView>
             </View>
           )}
 
