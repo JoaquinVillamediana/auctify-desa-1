@@ -909,6 +909,9 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
   const youWereOutbid =
     hasCurrentItem && clientHasBid !== null && clientIsWinner === null;
 
+  const youAreLeading =
+    hasCurrentItem && clientIsWinner !== null;
+
   let lastEvent = null;
   if (lastEventRow) {
     let parsedData: Record<string, unknown> = {};
@@ -931,6 +934,7 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
     connectedCount,
     currentItem,
     youWereOutbid,
+    youAreLeading,
     lastEvent,
     updatedAt: new Date().toISOString(),
   };

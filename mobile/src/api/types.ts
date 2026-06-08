@@ -114,6 +114,7 @@ export interface AuctionLiveStatus {
   connectedCount: number;
   currentItem?: LiveStatusItem | null;
   youWereOutbid?: boolean;
+  youAreLeading?: boolean;
   lastEvent?: {
     type: AuctionEventType;
     timestamp: string;

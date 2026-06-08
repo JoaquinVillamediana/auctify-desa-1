@@ -7,6 +7,7 @@ import {
   Alert,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Modal,
 } from 'react-native';
@@ -570,6 +571,14 @@ export default function AuctionLiveScreen() {
           {/* Cantidad de pujas */}
           <Text style={styles.bidCount}>{item.bidCount} puja(s)</Text>
 
+          {/* Banner "Vas ganando" */}
+          {liveStatus?.youAreLeading && (
+            <View style={styles.winningBanner}>
+              <View style={styles.winningDot} />
+              <Text style={styles.winningText}>¡Vas ganando! Tu oferta es la más alta.</Text>
+            </View>
+          )}
+
           {/* Banner "Te superaron" */}
           {liveStatus?.youWereOutbid && (
             <View style={styles.outbidBanner}>
@@ -841,52 +850,66 @@ export default function AuctionLiveScreen() {
         animationType="fade"
         onRequestClose={() => setSuccessInfo(null)}
       >
-        <View style={styles.overlay}>
-          <View style={styles.sheet}>
-            <View style={styles.successCheck}>
-              <Feather name="check" size={30} color={colors.text.inverse} />
-            </View>
-            <Text style={styles.successTitle}>¡Puja exitosa!</Text>
-            <View style={styles.winBadge}>
-              <View style={styles.winDot} />
-              <Text style={styles.winText}>Ganando</Text>
-            </View>
-
-            <View style={styles.successAmountBox}>
-              <Text style={styles.successAmountLabel}>Subasta ganadora actual</Text>
-              <Text style={styles.successAmount}>
-                {successInfo ? formatCurrency(successInfo.amount) : ''}
-              </Text>
-              <Text style={styles.successAmountSub}>Tu oferta es actualmente la más alta.</Text>
-            </View>
-
-            {item ? (
-              <View style={styles.successItem}>
-                <Text style={styles.successItemName} numberOfLines={1}>{item.catalogDescription}</Text>
-                <Text style={styles.successItemSub}>
-                  {successInfo
-                    ? successInfo.at.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
-                    : ''}
-                </Text>
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setSuccessInfo(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Cerrar confirmación de puja"
+        >
+          <Pressable
+            style={styles.sheet}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <ScrollView
+              style={styles.successScroll}
+              contentContainerStyle={styles.successContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.successCheck}>
+                <Feather name="check" size={30} color={colors.text.inverse} />
               </View>
-            ) : null}
+              <Text style={styles.successTitle}>¡Puja exitosa!</Text>
+              <View style={styles.winBadge}>
+                <View style={styles.winDot} />
+                <Text style={styles.winText}>Ganando</Text>
+              </View>
 
-            <Button
-              title="Ver mis ofertas"
-              onPress={() => {
-                setSuccessInfo(null);
-                router.push('/(tabs)/mis-pujas');
-              }}
-              style={styles.successBtn}
-            />
-            <Button
-              title="Volver a la subasta"
-              variant="outline"
-              onPress={() => setSuccessInfo(null)}
-              style={styles.successBtn}
-            />
-          </View>
-        </View>
+              <View style={styles.successAmountBox}>
+                <Text style={styles.successAmountLabel}>Subasta ganadora actual</Text>
+                <Text style={styles.successAmount}>
+                  {successInfo ? formatCurrency(successInfo.amount) : ''}
+                </Text>
+                <Text style={styles.successAmountSub}>Tu oferta es actualmente la más alta.</Text>
+              </View>
+
+              {item ? (
+                <View style={styles.successItem}>
+                  <Text style={styles.successItemName} numberOfLines={1}>{item.catalogDescription}</Text>
+                  <Text style={styles.successItemSub}>
+                    {successInfo
+                      ? successInfo.at.toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
+                      : ''}
+                  </Text>
+                </View>
+              ) : null}
+
+              <Button
+                title="Ver mis ofertas"
+                onPress={() => {
+                  setSuccessInfo(null);
+                  router.push('/(tabs)/mis-pujas');
+                }}
+                style={styles.successBtn}
+              />
+              <Button
+                title="Volver a la subasta"
+                variant="outline"
+                onPress={() => setSuccessInfo(null)}
+                style={styles.successBtn}
+              />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -1036,6 +1059,29 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.text.tertiary,
     marginTop: spacing.xs,
+  },
+  winningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.feedback.successBackground,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.feedback.success,
+  },
+  winningDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.feedback.success,
+  },
+  winningText: {
+    ...typography.bodySmall,
+    color: colors.feedback.success,
+    fontWeight: '700',
+    flex: 1,
   },
   outbidBanner: {
     backgroundColor: colors.feedback.warningBackground,
@@ -1293,6 +1339,7 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
     maxWidth: 380,
+    maxHeight: '85%',
     backgroundColor: colors.background.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
@@ -1323,6 +1370,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   successTitle: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.xs },
+  successScroll: {
+    width: '100%',
+  },
+  successContent: {
+    alignItems: 'center',
+    paddingBottom: spacing.xs,
+  },
   winBadge: {
     flexDirection: 'row',
     alignItems: 'center',
