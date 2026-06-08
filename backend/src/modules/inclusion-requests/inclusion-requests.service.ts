@@ -5,6 +5,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError, ErrorCode, notFound, forbidden, validationError } from "../../lib/errors";
+import { createNotification } from "../notifications/notifications.service";
 
 function declarationRequired(): AppError {
   return new AppError(
@@ -192,7 +193,6 @@ async function emitOwnerNotification(
   type: string,
   data: { title: string; message: string; payload?: Record<string, unknown> }
 ) {
-  // Buscar el clientId asociado al ownerId por document
   const owner = await prisma.owner.findUnique({
     where: { id: ownerId },
     select: { document: true },
@@ -205,13 +205,5 @@ async function emitOwnerNotification(
   });
   if (!client) return;
 
-  await prisma.notification.create({
-    data: {
-      clientId: client.id,
-      type,
-      title: data.title,
-      message: data.message,
-      payload: data.payload ? JSON.stringify(data.payload) : null,
-    },
-  });
+  await createNotification(client.id, type, data.title, data.message, data.payload);
 }

@@ -15,6 +15,8 @@ import authRouter from "../modules/auth/auth.routes";
 import clientsRouter from "../modules/clients/clients.routes";
 import productsRouter from "../modules/products/products.routes";
 import inclusionRequestsRouter from "../modules/inclusion-requests/inclusion-requests.routes";
+import metricsRouter from "../modules/metrics/metrics.routes";
+import notificationsRouter from "../modules/notifications/notifications.routes";
 
 const router = Router();
 
@@ -88,17 +90,12 @@ router.use("/inclusion-requests", inclusionRequestsRouter);
 // router.use("/penalties", penaltiesRouter);
 
 // ── Notifications (F09) ───────────────────────────────────────────────────────
-// TODO: implementar módulo notifications
-// GET  /me/notifications
-// POST /notifications/:id/read
-// Ver docs/features/F09-notifications.md
-// router.use("/notifications", notificationsRouter);
+// GET /me/notifications, POST /notifications/:id/read
+router.use("/", notificationsRouter);
 
 // ── Metrics (F08) ─────────────────────────────────────────────────────────────
-// TODO: implementar módulo metrics
-// GET  /me/metrics, /clients/:id/metrics (admin)
-// Ver docs/features/F08-sale-records.md (métricas)
-// router.use("/metrics", metricsRouter);
+// GET /me/metrics, GET /clients/:id/metrics (admin)
+router.use("/", metricsRouter);
 
 // ── Owners (F07) ──────────────────────────────────────────────────────────────
 // TODO: implementar módulo owners

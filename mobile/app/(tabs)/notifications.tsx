@@ -1,41 +1,97 @@
-import { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { get, post } from '@/api/client';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing } from '@/theme';
-import type { Notification } from '@/api/types';
+import { colors, typography, spacing, radius } from '@/theme';
+import type { Notification, NotificationType } from '@/api/types';
+import type { ApiError } from '@/api/client';
 
-/**
- * Notificaciones del cliente (F09).
- * TODO → docs/features/F09-notifications.md
- *
- * Esta pantalla mostrara:
- * - Lista de notificaciones (GET /me/notifications)
- * - Badge de no leidas
- * - Marcar como leida al tocar (POST /notifications/{id}/read)
- * Tipos: admission, auction_winner, inclusion_proposal, penalty, item_rejected, info
- */
+// ── Configuración por tipo ──────────────────────────────────────────────────
+
+const TYPE_META: Record<NotificationType, { icon: string; color: string }> = {
+  admission:         { icon: '✅', color: colors.feedback.success },
+  auction_winner:    { icon: '🏆', color: '#F59E0B' },
+  inclusion_proposal:{ icon: '📋', color: colors.brand.primary },
+  penalty:           { icon: '⚠️', color: colors.feedback.warning },
+  item_rejected:     { icon: '❌', color: colors.feedback.error },
+  info:              { icon: 'ℹ️', color: colors.text.secondary },
+};
+
+// ── Helper de fecha relativa ────────────────────────────────────────────────
+
+function relativeDate(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60_000);
+  if (min < 1)  return 'ahora';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24)   return `hace ${h} h`;
+  const d = Math.floor(h / 24);
+  if (d < 7)    return `hace ${d} días`;
+  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+// ── Tipos ───────────────────────────────────────────────────────────────────
+
+interface NotificationsResponse {
+  items: Notification[];
+  unreadCount: number;
+}
+
+// ── Screen ──────────────────────────────────────────────────────────────────
+
 export default function NotificationsScreen() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // TODO → F09: reemplazar con GET /me/notifications cuando el alias /me este disponible
-    // Por ahora placeholder
-    setLoading(false);
+  async function fetchNotifications() {
+    try {
+      const data = await get<NotificationsResponse>('/me/notifications');
+      setNotifications(data.items);
+      setUnreadCount(data.unreadCount);
+      setError(null);
+    } catch (err) {
+      setError((err as ApiError).message ?? 'No se pudieron cargar las notificaciones.');
+    }
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchNotifications().finally(() => setLoading(false));
+    }, [])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
   }, []);
 
-  async function markRead(id: number) {
-    try {
-      await post(`/notifications/${id}/read`, {});
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
-    } catch {
-      // Ignorar silenciosamente — el proximo refresh corregira el estado
+  function handleTap(item: Notification) {
+    if (!item.read) {
+      post(`/notifications/${item.id}/read`, {}).catch(() => {});
+      setNotifications((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n));
+      setUnreadCount((c) => Math.max(0, c - 1));
+    }
+
+    const payload = item.payload as Record<string, unknown> | undefined;
+    if ((item.type === 'inclusion_proposal' || item.type === 'item_rejected') && payload?.inclusionRequestId) {
+      router.push(`/items/${payload.inclusionRequestId}`);
     }
   }
 
@@ -43,34 +99,40 @@ export default function NotificationsScreen() {
 
   if (error) {
     return (
-      <ErrorView
-        message={error}
-        onRetry={() => {
-          setLoading(true);
-          setError(null);
-          // TODO: re-fetch
-          setLoading(false);
-        }}
-      />
+      <>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Notificaciones</Text>
+        </View>
+        <ErrorView
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            fetchNotifications().finally(() => setLoading(false));
+          }}
+        />
+      </>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Notificaciones</Text>
-        {notifications.filter((n) => !n.read).length > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>
-              {notifications.filter((n) => !n.read).length}
-            </Text>
+        {unreadCount > 0 && (
+          <View style={styles.unreadBadge}>
+            <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
           </View>
         )}
       </View>
 
+      {/* Lista */}
       <FlatList
         data={notifications}
         keyExtractor={(item) => String(item.id)}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand.primary} />
+        }
         contentContainerStyle={notifications.length === 0 ? styles.emptyContainer : styles.list}
         ListEmptyComponent={
           <EmptyState
@@ -78,107 +140,161 @@ export default function NotificationsScreen() {
             message="Acá aparecerán tus notificaciones: admisión, pujas ganadas, propuestas de inclusión y más."
           />
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-            onPress={() => !item.read && markRead(item.id)}
-            activeOpacity={0.8}
-          >
-            {!item.read && <View style={styles.unreadDot} />}
-            <View style={styles.notifContent}>
-              <Text style={styles.notifTitle}>{item.title}</Text>
-              <Text style={styles.notifMessage}>{item.message}</Text>
-              <Text style={styles.notifDate}>
-                {new Date(item.createdAt).toLocaleDateString('es-AR')}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const meta = TYPE_META[item.type] ?? TYPE_META.info;
+          return (
+            <TouchableOpacity
+              style={[styles.card, !item.read && styles.cardUnread]}
+              onPress={() => handleTap(item)}
+              activeOpacity={0.75}
+            >
+              {/* Ícono de tipo */}
+              <View style={[styles.iconWrap, { backgroundColor: meta.color + '18' }]}>
+                <Text style={styles.icon}>{meta.icon}</Text>
+              </View>
+
+              {/* Contenido */}
+              <View style={styles.body}>
+                <View style={styles.topRow}>
+                  <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.date}>{relativeDate(item.createdAt)}</Text>
+                </View>
+                <Text style={styles.message} numberOfLines={2}>{item.message}</Text>
+
+                {/* Badge de tipo */}
+                <View style={[styles.typeBadge, { borderColor: meta.color }]}>
+                  <Text style={[styles.typeBadgeText, { color: meta.color }]}>
+                    {item.type.replace('_', ' ').toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Indicador no leída */}
+              {!item.read && <View style={styles.dot} />}
+            </TouchableOpacity>
+          );
+        }}
       />
     </View>
   );
 }
 
+// ── Estilos ─────────────────────────────────────────────────────────────────
+
+const CARD_SHADOW = {
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 4,
+  elevation: 2,
+};
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.primary,
-  },
+  screen: { flex: 1, backgroundColor: colors.background.primary },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingTop: 60,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
     backgroundColor: colors.background.primary,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   headerTitle: {
     ...typography.heading2,
     color: colors.text.primary,
     flex: 1,
   },
-  badge: {
-    backgroundColor: colors.brand.primary,
-    borderRadius: 12,
+  unreadBadge: {
+    backgroundColor: colors.feedback.error,
+    borderRadius: radius.pill,
     minWidth: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  badgeText: {
-    ...typography.caption,
+  unreadBadgeText: {
+    ...typography.overline,
     color: '#FFFFFF',
-    fontWeight: '700',
+    letterSpacing: 0,
   },
-  list: {
-    padding: spacing.md,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  notifCard: {
+
+  list: { padding: spacing.md, gap: spacing.sm },
+  emptyContainer: { flex: 1 },
+
+  card: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: colors.background.card,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     padding: spacing.md,
     marginBottom: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border.default,
+    ...CARD_SHADOW,
   },
-  notifCardUnread: {
+  cardUnread: {
     borderColor: colors.brand.primary,
-    backgroundColor: colors.background.highlight,
+    backgroundColor: colors.brand.primaryLight,
   },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand.primary,
-    marginTop: 6,
+
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: spacing.sm,
   },
-  notifContent: {
-    flex: 1,
+  icon: { fontSize: 22 },
+
+  body: { flex: 1 },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+    gap: spacing.xs,
   },
-  notifTitle: {
-    ...typography.bodySmall,
+  title: {
+    ...typography.label,
     color: colors.text.primary,
     fontWeight: '700',
-    marginBottom: 2,
+    flex: 1,
   },
-  notifMessage: {
+  date: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    marginTop: 1,
+  },
+  message: {
     ...typography.bodySmall,
     color: colors.text.secondary,
     marginBottom: spacing.xs,
     lineHeight: 20,
   },
-  notifDate: {
-    ...typography.caption,
-    color: colors.text.tertiary,
+  typeBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  typeBadgeText: {
+    ...typography.overline,
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand.primary,
+    marginTop: 6,
+    marginLeft: spacing.xs,
   },
 });
