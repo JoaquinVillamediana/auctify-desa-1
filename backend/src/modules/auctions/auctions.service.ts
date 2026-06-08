@@ -184,6 +184,103 @@ export async function createAuction(data: {
   });
 }
 
+// ── POST /auctions/collection (admin / dev) ───────────────────────────────────
+
+/**
+ * Crea una subasta de colección para todos los bienes de un dueño.
+ * Consigna: "si hay muchos bienes de un mismo dueño → colección con su nombre".
+ */
+export async function createCollectionAuction(data: {
+  ownerId: number;
+  startsAt: string;
+  currency: "ARS" | "USD";
+  category: string;
+  productIds?: number[];
+  responsibleId: number;
+}) {
+  // Verificar que el dueño exista
+  const owner = await prisma.owner.findUnique({ where: { id: data.ownerId } });
+  if (!owner) throw notFound("Dueño");
+
+  // Determinar los productos a incluir
+  const productWhere: Record<string, unknown> = { ownerId: data.ownerId };
+  if (data.productIds && data.productIds.length > 0) {
+    productWhere.id = { in: data.productIds };
+  }
+
+  const products = await prisma.product.findMany({ where: productWhere });
+
+  // Validar que todos los productIds solicitados pertenecen al dueño
+  if (data.productIds && data.productIds.length > 0) {
+    const foundIds = new Set(products.map((p) => p.id));
+    const missing = data.productIds.filter((id) => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw new AppError(
+        ErrorCode.VALIDATION_ERROR,
+        422,
+        `Los siguientes productos no pertenecen al dueño o no existen: ${missing.join(", ")}`
+      );
+    }
+  }
+
+  if (products.length === 0) {
+    throw new AppError(
+      ErrorCode.VALIDATION_ERROR,
+      422,
+      "El dueño no tiene productos para incluir en la colección"
+    );
+  }
+
+  const collectionName = `Colección ${owner.name}`;
+
+  return prisma.$transaction(async (tx) => {
+    // Crear la subasta
+    const auction = await tx.auction.create({
+      data: {
+        startsAt: new Date(data.startsAt),
+        status: "scheduled",
+        currency: data.currency,
+        category: data.category,
+        isCollection: true,
+        collectionName,
+        hasWarehouse: false,
+        ownSecurity: false,
+      },
+    });
+
+    // Crear el catálogo
+    const catalog = await tx.catalog.create({
+      data: {
+        auctionId: auction.id,
+        responsibleId: data.responsibleId,
+        description: collectionName,
+      },
+    });
+
+    // Crear un CatalogItem por cada producto (lotNumber secuencial)
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      await tx.catalogItem.create({
+        data: {
+          catalogId: catalog.id,
+          productId: product.id,
+          lotNumber: i + 1,
+          basePrice: 0,
+          commission: 0,
+          status: "pending",
+          auctioned: false,
+        },
+      });
+    }
+
+    return {
+      ...mapAuction(auction),
+      catalogId: catalog.id,
+      itemCount: products.length,
+    };
+  });
+}
+
 // ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
 
 export async function updateAuction(
@@ -594,28 +691,74 @@ export async function closeItem(auctionId: number, itemId: number) {
       }
     );
 
-    return result.saleRecord;
+    // Verificar si el dueño tiene cuenta de cobro declarada antes del inicio
+    const ownerHasValidPayoutAccount = await prisma.payoutAccount
+      .count({
+        where: {
+          ownerId: item.product.ownerId,
+          declaredAt: { lte: auction.startsAt },
+        },
+      })
+      .then((n) => n > 0);
+
+    return { ...result.saleRecord, ownerHasValidPayoutAccount };
   } else {
     // ── Sin pujas: empresa compra al base ────────────────────────────────────
-    await prisma.$transaction([
-      prisma.catalogItem.update({
-        where: { id: itemId },
-        data: { status: "unsold", auctioned: true },
-      }),
-      prisma.auction.update({
-        where: { id: auctionId },
-        data: { currentItemId: null, version: { increment: 1 } },
-      }),
-      prisma.auctionEvent.create({
+    const ownerId = item.product.ownerId;
+
+    // Verificar si el dueño tiene cuenta de cobro declarada antes del inicio
+    const ownerHasValidPayoutAccount = await prisma.payoutAccount
+      .count({
+        where: {
+          ownerId,
+          declaredAt: { lte: auction.startsAt },
+        },
+      })
+      .then((n) => n > 0);
+
+    const companySaleRecord = await prisma.$transaction(async (tx) => {
+      const saleRecord = await tx.saleRecord.create({
         data: {
           auctionId,
-          type: "item_unsold",
-          data: JSON.stringify({ itemId, lotNumber: item.lotNumber }),
+          ownerId,
+          productId: item.product.id,
+          clientId: null,
+          paymentMethodId: null,
+          amount: item.basePrice,
+          commission: 0,
+          boughtByCompany: true,
+          paymentStatus: "pending",
+          pickupInPerson: false,
         },
-      }),
-    ]);
+      });
 
-    return { unsold: true, itemId };
+      await tx.catalogItem.update({
+        where: { id: itemId },
+        data: { status: "sold", auctioned: true },
+      });
+
+      await tx.auction.update({
+        where: { id: auctionId },
+        data: { currentItemId: null, version: { increment: 1 } },
+      });
+
+      await tx.auctionEvent.create({
+        data: {
+          auctionId,
+          type: "item_sold",
+          data: JSON.stringify({
+            itemId,
+            saleRecordId: saleRecord.id,
+            amount: item.basePrice,
+            boughtByCompany: true,
+          }),
+        },
+      });
+
+      return saleRecord;
+    });
+
+    return { ...companySaleRecord, ownerHasValidPayoutAccount };
   }
 }
 

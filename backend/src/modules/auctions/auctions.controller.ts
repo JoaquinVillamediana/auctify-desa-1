@@ -60,6 +60,25 @@ export async function createAuction(
   }
 }
 
+// ── POST /auctions/collection (admin / dev) ────────────────────────────────────
+
+export async function createCollectionAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const responsibleId = req.auth!.sub;
+    const result = await auctionsService.createCollectionAuction({
+      ...req.body,
+      responsibleId,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
 
 export async function updateAuction(

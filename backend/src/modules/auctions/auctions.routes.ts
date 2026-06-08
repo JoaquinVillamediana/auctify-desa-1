@@ -5,6 +5,7 @@
  * GET  /auctions                           — listar subastas (público)
  * GET  /auctions/:id                       — detalle (público)
  * POST /auctions                           — crear subasta (ADMIN)
+ * POST /auctions/collection               — crear subasta de colección por dueño (ADMIN/dev)
  * PATCH /auctions/:id                      — actualizar subasta (ADMIN)
  * GET  /auctions/:id/catalog               — catálogo con ítems (optionalAuth para precios)
  * GET  /auctions/:id/streaming             — URL de streaming (requireAuth)
@@ -30,6 +31,7 @@ import {
   updateAuctionSchema,
   registerAttendeeSchema,
   auctionItemParamsSchema,
+  createCollectionAuctionSchema,
 } from "./auctions.schema";
 import * as ctrl from "./auctions.controller";
 
@@ -44,6 +46,28 @@ router.get("/:id", validate(auctionIdSchema), ctrl.getAuction);
 // ── Admin CRUD ────────────────────────────────────────────────────────────────
 
 router.post("/", requireAuth, requireRole("ADMIN"), validate(createAuctionSchema), ctrl.createAuction);
+
+/**
+ * POST /auctions/collection
+ * Crea una subasta de colección para todos los bienes de un dueño.
+ * En dev accesible con cualquier usuario autenticado; en prod requiere ADMIN.
+ */
+if (process.env.NODE_ENV !== "production") {
+  router.post(
+    "/collection",
+    requireAuth,
+    validate(createCollectionAuctionSchema),
+    ctrl.createCollectionAuction
+  );
+} else {
+  router.post(
+    "/collection",
+    requireAuth,
+    requireRole("ADMIN"),
+    validate(createCollectionAuctionSchema),
+    ctrl.createCollectionAuction
+  );
+}
 
 router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateAuctionSchema), ctrl.updateAuction);
 

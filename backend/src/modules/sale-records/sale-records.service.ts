@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { notFound, forbidden, validationError, AppError, ErrorCode } from "../../lib/errors";
 import { createNotification } from "../notifications/notifications.service";
+import { maybeUpgradeCategory } from "../clients/clients.service";
 import type { JwtPayload } from "../../lib/jwt";
 
 // ── Operaciones ──────────────────────────────────────────────────────────────
@@ -119,7 +120,21 @@ export async function updateShipping(
     throw forbidden("Solo el comprador puede actualizar el envío");
   }
 
-  if (!data.pickupInPerson && !data.shippingAddress) {
+  // Retiro en persona: no se necesita dirección y se pierde el seguro
+  // Envío: la dirección es obligatoria y el seguro se mantiene
+  if (data.pickupInPerson) {
+    const updated = await prisma.saleRecord.update({
+      where: { id: saleRecordId },
+      data: {
+        pickupInPerson: true,
+        shippingAddress: null,
+        insuranceCovered: false,
+      },
+    });
+    return updated;
+  }
+
+  if (!data.shippingAddress) {
     throw validationError("Si elegís envío, la dirección es requerida", {
       shippingAddress: "Requerida cuando pickupInPerson es false",
     });
@@ -128,15 +143,13 @@ export async function updateShipping(
   const updated = await prisma.saleRecord.update({
     where: { id: saleRecordId },
     data: {
-      pickupInPerson: data.pickupInPerson,
-      shippingAddress: data.shippingAddress ?? null,
+      pickupInPerson: false,
+      shippingAddress: data.shippingAddress,
+      insuranceCovered: true,
     },
   });
 
-  return {
-    ...updated,
-    insuranceLost: data.pickupInPerson,
-  };
+  return updated;
 }
 
 export async function paySaleRecord(
@@ -144,7 +157,10 @@ export async function paySaleRecord(
   data: { paymentMethodId: number },
   auth: JwtPayload
 ) {
-  const saleRecord = await prisma.saleRecord.findUnique({ where: { id: saleRecordId } });
+  const saleRecord = await prisma.saleRecord.findUnique({
+    where: { id: saleRecordId },
+    include: { auction: { select: { currency: true } } },
+  });
   if (!saleRecord) throw notFound("Registro de venta");
 
   if (saleRecord.clientId !== auth.sub) {
@@ -165,10 +181,20 @@ export async function paySaleRecord(
     throw new AppError(ErrorCode.NO_VERIFIED_PAYMENT_METHOD, 403, "El medio de pago no está verificado");
   }
 
+  // Validar moneda: el medio de pago debe coincidir con la moneda de la subasta
+  const auctionCurrency = saleRecord.auction?.currency;
+  if (auctionCurrency && paymentMethod.currency !== auctionCurrency) {
+    throw new AppError(
+      ErrorCode.CURRENCY_MISMATCH,
+      422,
+      `El medio de pago debe ser en la moneda de la subasta (${auctionCurrency}).`
+    );
+  }
+
   // Si es cheque certificado, verificar que el monto no supere el reservado
   if (paymentMethod.type === "certified_check") {
     if (saleRecord.amount > (paymentMethod.reservedAmount ?? 0)) {
-      return await handlePaymentFailure({ ...saleRecord, productId: saleRecord.productId }, auth.sub);
+      return await handlePaymentFailure({ ...saleRecord, clientId: auth.sub, productId: saleRecord.productId }, auth.sub);
     }
   }
 
@@ -181,6 +207,11 @@ export async function paySaleRecord(
       paymentMethodId: data.paymentMethodId,
     },
   });
+
+  // Mejora de categoría: best-effort, no debe fallar el pago
+  if (updated.clientId !== null) {
+    maybeUpgradeCategory(updated.clientId).catch(() => {/* best-effort */});
+  }
 
   return updated;
 }

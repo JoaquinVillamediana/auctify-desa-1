@@ -11,6 +11,7 @@
 import { prisma } from "../../lib/prisma";
 import { notFound, forbidden } from "../../lib/errors";
 import type { CreatePaymentMethodInput, VerifyPaymentMethodInput } from "./paymentMethods.schema";
+import { maybeUpgradeCategory } from "../clients/clients.service";
 
 // ── listByClient ─────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ export async function verify(id: number, data: VerifyPaymentMethodInput) {
     throw notFound("Medio de pago");
   }
 
-  return prisma.paymentMethod.update({
+  const updated = await prisma.paymentMethod.update({
     where: { id },
     data: {
       status: data.status,
@@ -93,4 +94,12 @@ export async function verify(id: number, data: VerifyPaymentMethodInput) {
       rejectionReason: data.status === "rejected" ? (data.reason ?? null) : null,
     },
   });
+
+  // Consigna: la diversidad de medios verificados puede mejorar la categoría del cliente.
+  // Se ejecuta best-effort (maybeUpgradeCategory atrapa sus propios errores).
+  if (data.status === "verified") {
+    await maybeUpgradeCategory(paymentMethod.clientId);
+  }
+
+  return updated;
 }

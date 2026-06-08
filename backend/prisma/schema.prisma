@@ -357,26 +357,30 @@ model SaleRecord {
   auctionId       Int
   ownerId         Int
   productId       Int
-  clientId        Int
+  /// clientId: null si la empresa compró el bien (nadie pujó)
+  clientId        Int?
   amount          Float
   commission      Float
   shippingCost    Float?
-  /// pickupInPerson: si true, el cliente pierde el seguro
+  /// pickupInPerson: si true, el cliente retira en persona y pierde el seguro
   pickupInPerson  Boolean  @default(false)
   shippingAddress String?
-  paymentMethodId Int
+  /// paymentMethodId: null en compras de la empresa (sin puja)
+  paymentMethodId Int?
   /// boughtByCompany: true si nadie pujó y la empresa compró al precio base
   boughtByCompany Boolean  @default(false)
+  /// insuranceCovered: false si el comprador retira en persona (pierde el seguro)
+  insuranceCovered Boolean @default(true)
   /// paymentStatus: pending | paid | failed
   paymentStatus   String   @default("pending")
   paidAt          DateTime?
   createdAt       DateTime @default(now())
 
-  auction       Auction       @relation(fields: [auctionId], references: [id])
-  owner         Owner         @relation(fields: [ownerId], references: [id])
-  product       Product       @relation(fields: [productId], references: [id])
-  client        Client        @relation(fields: [clientId], references: [id])
-  paymentMethod PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  auction       Auction        @relation(fields: [auctionId], references: [id])
+  owner         Owner          @relation(fields: [ownerId], references: [id])
+  product       Product        @relation(fields: [productId], references: [id])
+  client        Client?        @relation(fields: [clientId], references: [id])
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
 }
 
 /// Multa al cliente (10% del valor ofertado cuando no paga en 72hs).
@@ -388,6 +392,8 @@ model Penalty {
   amount    Float
   /// status: pending | paid
   status    String   @default("pending")
+  /// dueAt: plazo de 72hs para presentar los fondos; vencido → deriva a justicia
+  dueAt     DateTime?
   createdAt DateTime @default(now())
   paidAt    DateTime?
 

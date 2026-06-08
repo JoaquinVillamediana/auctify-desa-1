@@ -25,6 +25,12 @@ import type { CreatePenaltyInput } from "./penalties.schema";
  */
 export async function create(data: CreatePenaltyInput) {
   const penalty = await prisma.$transaction(async (tx) => {
+    // Consigna: el cliente deberá presentar los fondos antes de las 72hs.
+    // Si dueAt < now y status sigue 'pending' → el cliente permanece bloqueado;
+    // casos vencidos sin pago se derivan a instancia judicial (derivación en
+    // lectura: ningún scheduler, se evalúa al consultar la multa).
+    const dueAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
     // Crear la multa
     const created = await tx.penalty.create({
       data: {
@@ -33,6 +39,7 @@ export async function create(data: CreatePenaltyInput) {
         itemId: data.itemId,
         amount: data.amount,
         status: "pending",
+        dueAt,
       },
     });
 
@@ -80,6 +87,7 @@ export interface PayResult {
     itemId: number;
     amount: number;
     status: string;
+    dueAt: Date | null;
     createdAt: Date;
     paidAt: Date | null;
   };
