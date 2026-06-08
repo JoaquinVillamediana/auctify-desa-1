@@ -2,22 +2,21 @@
  * Rutas del módulo clients (admin).
  * Base path: /v1/clients (montado en routes/index.ts)
  *
- * Implementado aquí solo lo mínimo para desbloquear el flujo F01:
- *   PATCH /clients/:id — admitir cliente + asignar categoría + generar ActivationToken
- *
- * Para implementación completa ver docs/features/F03-clients.md (pendiente)
- *
- * TODO F03: GET /clients (listar), GET /clients/:id, baja lógica, métricas
+ * GET  /clients       — listar clientes (solo ADMIN, filtros: category, admitted)
+ * GET  /clients/:id   — detalle de cliente (ADMIN o self)
+ * PATCH /clients/:id  — admitir cliente + asignar categoría + generar ActivationToken
  */
 
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, requireRole, requireSelfOrAdmin } from "../../middleware/auth";
 import { validate } from "../../middleware/validate";
 import { notFound, validationError } from "../../lib/errors";
 import { createActivationToken } from "../auth/auth.service";
+import { createNotification } from "../notifications/notifications.service";
 import { env } from "../../config/env";
+import * as clientsController from "./clients.controller";
 
 const router = Router();
 
@@ -36,12 +35,53 @@ const admitClientSchema = z.object({
   }),
 });
 
+const listClientsSchema = z.object({
+  query: z.object({
+    category: z.enum(CATEGORIES).optional(),
+    admitted: z
+      .enum(["true", "false"])
+      .optional(),
+  }),
+});
+
+const idParam = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/, "ID debe ser un número").transform(Number),
+  }),
+});
+
+/**
+ * GET /clients
+ * Lista clientes. Filtros opcionales: category, admitted.
+ * Solo ADMIN.
+ */
+router.get(
+  "/",
+  requireAuth,
+  requireRole("ADMIN"),
+  validate(listClientsSchema),
+  clientsController.listClients
+);
+
+/**
+ * GET /clients/:id
+ * Detalle de cliente (incluye country + paymentMethods).
+ * ADMIN o el propio cliente.
+ */
+router.get(
+  "/:id",
+  requireAuth,
+  requireSelfOrAdmin("id"),
+  validate(idParam),
+  clientsController.getClient
+);
+
 /**
  * PATCH /clients/:id
  * Uso principal: admitir cliente y asignar categoría.
  * Solo ADMIN.
  *
- * Al admitir (admitted=true), genera un ActivationToken.
+ * Al admitir (admitted=true), genera un ActivationToken y envía notificación.
  * En desarrollo, el token se devuelve en la respuesta para facilitar las pruebas.
  * En producción se enviaría por email (TODO: integrar servicio de mail).
  *
@@ -94,8 +134,14 @@ router.patch(
 
       if (wasJustAdmitted) {
         activationToken = await createActivationToken(clientId);
-        console.log(
-          `[clients] ActivationToken generado para clientId=${clientId}: ${activationToken}`
+
+        // Notificar al cliente sobre su admisión
+        await createNotification(
+          clientId,
+          "admission",
+          "Cuenta admitida",
+          "Tu cuenta fue admitida. Ya podés activarla y participar.",
+          {}
         );
       }
 

@@ -9,6 +9,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { notFound, forbidden, validationError } from "../../lib/errors";
+import { createNotification } from "../notifications/notifications.service";
 import type { CreatePenaltyInput } from "./penalties.schema";
 
 // ── create ────────────────────────────────────────────────────────────────────
@@ -23,15 +24,22 @@ import type { CreatePenaltyInput } from "./penalties.schema";
  *  2. Setear Client.blocked = true
  */
 export async function create(data: CreatePenaltyInput) {
-  return prisma.$transaction(async (tx) => {
+  const penalty = await prisma.$transaction(async (tx) => {
+    // Consigna: el cliente deberá presentar los fondos antes de las 72hs.
+    // Si dueAt < now y status sigue 'pending' → el cliente permanece bloqueado;
+    // casos vencidos sin pago se derivan a instancia judicial (derivación en
+    // lectura: ningún scheduler, se evalúa al consultar la multa).
+    const dueAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
     // Crear la multa
-    const penalty = await tx.penalty.create({
+    const created = await tx.penalty.create({
       data: {
         clientId: data.clientId,
         auctionId: data.auctionId,
         itemId: data.itemId,
         amount: data.amount,
         status: "pending",
+        dueAt,
       },
     });
 
@@ -41,8 +49,19 @@ export async function create(data: CreatePenaltyInput) {
       data: { blocked: true },
     });
 
-    return penalty;
+    return created;
   });
+
+  // Notificar al cliente (fuera de la transacción para no bloquear)
+  await createNotification(
+    data.clientId,
+    "penalty",
+    "Multa generada",
+    `Se generó una multa de $${data.amount}.`,
+    { penaltyId: penalty.id }
+  );
+
+  return penalty;
 }
 
 // ── listByClient ──────────────────────────────────────────────────────────────
@@ -68,6 +87,7 @@ export interface PayResult {
     itemId: number;
     amount: number;
     status: string;
+    dueAt: Date | null;
     createdAt: Date;
     paidAt: Date | null;
   };

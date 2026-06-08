@@ -37,15 +37,15 @@ export async function createNotification(
   type: string,
   title: string,
   message: string,
-  payload?: Record<string, unknown>
-) {
+  payload: Record<string, unknown> = {}
+): Promise<void> {
   await prisma.notification.create({
     data: {
       clientId,
       type,
       title,
       message,
-      payload: payload ? JSON.stringify(payload) : null,
+      payload: JSON.stringify(payload),
     },
   });
 }

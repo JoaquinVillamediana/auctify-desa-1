@@ -85,3 +85,22 @@ export const registerAttendeeSchema = z.object({
       .optional(),
   }),
 });
+
+/** Params con :id (auctionId) y :itemId numéricos. */
+export const auctionItemParamsSchema = z.object({
+  params: z.object({
+    id: numericId,
+    itemId: numericId,
+  }),
+});
+
+/** POST /auctions/collection — crear subasta de colección para un dueño. */
+export const createCollectionAuctionSchema = z.object({
+  body: z.object({
+    ownerId: z.number({ required_error: "ownerId es requerido" }).int().positive(),
+    startsAt: z.string().min(1, "startsAt es requerido"),
+    currency: z.enum(CURRENCIES),
+    category: z.enum(CATEGORIES),
+    productIds: z.array(z.number().int().positive()).optional(),
+  }),
+});

@@ -60,6 +60,25 @@ export async function createAuction(
   }
 }
 
+// ── POST /auctions/collection (admin / dev) ────────────────────────────────────
+
+export async function createCollectionAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const responsibleId = req.auth!.sub;
+    const result = await auctionsService.createCollectionAuction({
+      ...req.body,
+      responsibleId,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
 
 export async function updateAuction(
@@ -195,6 +214,56 @@ export async function getLiveStatus(
     const clientId = req.auth!.sub;
     const status = await auctionsService.getLiveStatus(auctionId, clientId);
     res.status(200).json(status);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/items/:itemId/open (ADMIN) ────────────────────────────
+
+export async function openItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const itemId = req.params.itemId as unknown as number;
+    const result = await auctionsService.openItem(auctionId, itemId);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/items/:itemId/close (ADMIN) ───────────────────────────
+
+export async function closeItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const itemId = req.params.itemId as unknown as number;
+    const result = await auctionsService.closeItem(auctionId, itemId);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/close (ADMIN) ─────────────────────────────────────────
+
+export async function closeAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const result = await auctionsService.closeAuction(auctionId);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }

@@ -20,6 +20,30 @@ import { colors, typography, spacing } from '@/theme';
 import type { AuctionLiveStatus, PaymentMethod } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
+// ── Tipos del panel de remate ────────────────────────────────────────────────
+
+/** Ítem del catálogo devuelto por GET /auctions/:id/catalog */
+interface AdminCatalogItem {
+  id: number;
+  lotNumber: number;
+  basePrice: number | null;
+  status: string; // 'pending' | 'active' | 'sold' | 'unsold'
+  productId: number;
+  catalogDescription?: string | null;
+  product?: {
+    catalogDescription?: string | null;
+    fullDescription?: string;
+  } | null;
+}
+
+/** Respuesta de POST /auctions/:id/items/:itemId/close */
+interface CloseItemResult {
+  sold: boolean;
+  winnerBidderNumber?: number | null;
+  amount?: number | null;
+  message?: string | null;
+}
+
 // ── Tipos internos ───────────────────────────────────────────────────────────
 
 type ConnectState =
@@ -62,6 +86,15 @@ export default function AuctionLiveScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidSuccess, setBidSuccess] = useState<string | null>(null);
+
+  // ── Estado del panel de remate (solo admins) ────────────────────────────
+  const [panelExpanded, setPanelExpanded] = useState(false);
+  const [catalog, setCatalog] = useState<AdminCatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  /** id del ítem sobre el que hay una acción en curso (open/close) */
+  const [actionItemId, setActionItemId] = useState<number | null>(null);
+  const [closingAuction, setClosingAuction] = useState(false);
 
   // Ref para desconectar al desmontar sin generar dependencia extra
   const auctionId = id;
@@ -305,6 +338,113 @@ export default function AuctionLiveScreen() {
     retryPoll,
   ]);
 
+  // ── Panel de remate — helpers de admin ──────────────────────────────────
+
+  /**
+   * Un usuario es admin si su categoría es 'platinum'.
+   * En dev el backend permite cualquier usuario autenticado para todas las
+   * rutas /auctions/:id/items/:itemId/open|close y /auctions/:id/close.
+   */
+  const isAdmin = user?.category === 'platinum';
+
+  /** Carga (o recarga) el catálogo de la subasta. */
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const items = await get<AdminCatalogItem[]>(`/auctions/${auctionId}/catalog`);
+      setCatalog(items);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setCatalogError(apiError.message ?? 'No se pudo cargar el catálogo.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [auctionId]);
+
+  /** Abre el panel y carga el catálogo la primera vez que se expande. */
+  const handleTogglePanel = useCallback(() => {
+    setPanelExpanded((prev) => {
+      const next = !prev;
+      if (next && catalog.length === 0) {
+        void loadCatalog();
+      }
+      return next;
+    });
+  }, [catalog.length, loadCatalog]);
+
+  /** Abre un ítem (POST /auctions/:id/items/:itemId/open). */
+  const handleOpenItem = useCallback(async (itemId: number) => {
+    setActionItemId(itemId);
+    try {
+      await post(`/auctions/${auctionId}/items/${itemId}/open`, {});
+      // Refrescar catálogo y estado en vivo
+      void loadCatalog();
+      retryPoll();
+    } catch (err) {
+      const apiError = err as ApiError;
+      Alert.alert('Error al abrir ítem', apiError.message ?? 'No se pudo abrir el ítem.');
+    } finally {
+      setActionItemId(null);
+    }
+  }, [auctionId, loadCatalog, retryPoll]);
+
+  /** Adjudica y cierra un ítem (POST /auctions/:id/items/:itemId/close). */
+  const handleCloseItem = useCallback(async (itemId: number) => {
+    setActionItemId(itemId);
+    try {
+      const result = await post<CloseItemResult>(
+        `/auctions/${auctionId}/items/${itemId}/close`,
+        {}
+      );
+      // Mostrar resultado: ganador o sin ofertas
+      const msg = result.sold
+        ? `Ítem adjudicado al postor #${result.winnerBidderNumber ?? '—'} por ${
+            result.amount != null ? formatCurrency(result.amount) : '—'
+          }.`
+        : 'Ítem cerrado sin ofertas.';
+      Alert.alert('Ítem cerrado', msg);
+      void loadCatalog();
+      retryPoll();
+    } catch (err) {
+      const apiError = err as ApiError;
+      Alert.alert('Error al cerrar ítem', apiError.message ?? 'No se pudo cerrar el ítem.');
+    } finally {
+      setActionItemId(null);
+    }
+  }, [auctionId, loadCatalog, retryPoll]);
+
+  /** Cierra la subasta completa (POST /auctions/:id/close). */
+  const handleCloseAuction = useCallback(async () => {
+    Alert.alert(
+      'Cerrar subasta',
+      '¿Confirmás que querés cerrar la subasta? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar subasta',
+          style: 'destructive',
+          onPress: async () => {
+            setClosingAuction(true);
+            try {
+              await post(`/auctions/${auctionId}/close`, {});
+              Alert.alert('Subasta cerrada', 'La subasta fue cerrada exitosamente.');
+              retryPoll();
+            } catch (err) {
+              const apiError = err as ApiError;
+              Alert.alert(
+                'Error al cerrar subasta',
+                apiError.message ?? 'No se pudo cerrar la subasta.'
+              );
+            } finally {
+              setClosingAuction(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [auctionId, retryPoll]);
+
   // ── Renders de estado ─────────────────────────────────────────────────────
 
   if (connectState === 'idle' || connectState === 'connecting') {
@@ -546,6 +686,121 @@ export default function AuctionLiveScreen() {
           <Text style={styles.noBidText}>La subasta está cerrada.</Text>
         </View>
       ) : null}
+
+      {/* ── Panel de remate (solo administradores, categoría platinum) ── */}
+      {isAdmin && (
+        <View style={styles.adminPanel}>
+          {/* Cabecera colapsable */}
+          <TouchableOpacity
+            style={styles.adminPanelHeader}
+            onPress={handleTogglePanel}
+            accessibilityRole="button"
+            accessibilityLabel={panelExpanded ? 'Colapsar panel de remate' : 'Expandir panel de remate'}
+          >
+            <Text style={styles.adminPanelTitle}>🔨 Panel de remate</Text>
+            <Text style={styles.adminPanelChevron}>{panelExpanded ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+
+          {panelExpanded && (
+            <View style={styles.adminPanelBody}>
+              {/* Botón recargar catálogo */}
+              <Button
+                title={catalogLoading ? 'Cargando…' : 'Recargar catálogo'}
+                variant="outline"
+                loading={catalogLoading}
+                onPress={() => void loadCatalog()}
+                style={styles.adminReloadBtn}
+              />
+
+              {/* Error al cargar catálogo */}
+              {catalogError !== null && (
+                <View style={styles.adminErrorBanner}>
+                  <Text style={styles.adminErrorText}>{catalogError}</Text>
+                </View>
+              )}
+
+              {/* Lista de ítems del catálogo */}
+              {catalog.length === 0 && !catalogLoading && !catalogError && (
+                <Text style={styles.adminEmptyText}>Sin ítems en el catálogo.</Text>
+              )}
+
+              {catalog.map((catItem) => {
+                const label =
+                  catItem.product?.catalogDescription ??
+                  catItem.catalogDescription ??
+                  `Lote #${catItem.lotNumber}`;
+                const isPending = catItem.status === 'pending';
+                const isActive = catItem.status === 'active';
+                const isClosed =
+                  catItem.status === 'sold' || catItem.status === 'unsold';
+                const isBusy = actionItemId === catItem.id;
+
+                return (
+                  <View key={catItem.id} style={styles.adminItemRow}>
+                    {/* Info del ítem */}
+                    <View style={styles.adminItemInfo}>
+                      <Text style={styles.adminItemLot}>Lote #{catItem.lotNumber}</Text>
+                      <Text style={styles.adminItemDesc} numberOfLines={2}>
+                        {label}
+                      </Text>
+                      <View
+                        style={[
+                          styles.adminStatusBadge,
+                          isActive && styles.adminStatusBadgeActive,
+                          isClosed && styles.adminStatusBadgeClosed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.adminStatusText,
+                            isActive && styles.adminStatusTextActive,
+                            isClosed && styles.adminStatusTextClosed,
+                          ]}
+                        >
+                          {catItem.status.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Acciones según estado */}
+                    <View style={styles.adminItemActions}>
+                      {isPending && (
+                        <Button
+                          title={isBusy ? '…' : 'Abrir'}
+                          loading={isBusy}
+                          disabled={isBusy}
+                          onPress={() => void handleOpenItem(catItem.id)}
+                          style={styles.adminActionBtn}
+                        />
+                      )}
+                      {isActive && (
+                        <Button
+                          title={isBusy ? '…' : 'Adjudicar y cerrar'}
+                          loading={isBusy}
+                          disabled={isBusy}
+                          onPress={() => void handleCloseItem(catItem.id)}
+                          style={[styles.adminActionBtn, styles.adminCloseBtn]}
+                        />
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+
+              {/* Cerrar subasta completa */}
+              <View style={styles.adminDivider} />
+              <Button
+                title={closingAuction ? 'Cerrando subasta…' : 'Cerrar subasta'}
+                variant="outline"
+                loading={closingAuction}
+                disabled={closingAuction}
+                onPress={() => void handleCloseAuction()}
+                style={styles.adminCloseAuctionBtn}
+              />
+            </View>
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -843,5 +1098,121 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.feedback.warning,
     lineHeight: 22,
+  },
+
+  // ── Panel de remate (admin) ──────────────────────────────────────────────
+
+  adminPanel: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.background.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.brand.primary + '40',
+    overflow: 'hidden',
+  },
+  adminPanelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    backgroundColor: colors.brand.primaryLight,
+  },
+  adminPanelTitle: {
+    ...typography.label,
+    color: colors.brand.primary,
+    fontWeight: '700',
+  },
+  adminPanelChevron: {
+    ...typography.caption,
+    color: colors.brand.primary,
+  },
+  adminPanelBody: {
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  adminReloadBtn: {
+    marginBottom: spacing.sm,
+  },
+  adminErrorBanner: {
+    backgroundColor: colors.feedback.errorBackground,
+    borderRadius: 8,
+    padding: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.feedback.error,
+    marginBottom: spacing.sm,
+  },
+  adminErrorText: {
+    ...typography.bodySmall,
+    color: colors.feedback.error,
+  },
+  adminEmptyText: {
+    ...typography.bodySmall,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+  adminItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+    gap: spacing.sm,
+  },
+  adminItemInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  adminItemLot: {
+    ...typography.overline,
+    color: colors.text.tertiary,
+  },
+  adminItemDesc: {
+    ...typography.bodySmall,
+    color: colors.text.primary,
+  },
+  adminStatusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.background.secondary,
+    borderRadius: 4,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    marginTop: 2,
+  },
+  adminStatusBadgeActive: {
+    backgroundColor: colors.feedback.successBackground,
+  },
+  adminStatusBadgeClosed: {
+    backgroundColor: colors.background.secondary,
+  },
+  adminStatusText: {
+    ...typography.overline,
+    color: colors.text.tertiary,
+    letterSpacing: 0.5,
+  },
+  adminStatusTextActive: {
+    color: colors.feedback.success,
+  },
+  adminStatusTextClosed: {
+    color: colors.text.tertiary,
+  },
+  adminItemActions: {
+    flexShrink: 0,
+  },
+  adminActionBtn: {
+    minWidth: 90,
+    paddingHorizontal: spacing.sm,
+  },
+  adminCloseBtn: {
+    backgroundColor: colors.feedback.error,
+  },
+  adminDivider: {
+    height: 1,
+    backgroundColor: colors.border.default,
+    marginVertical: spacing.sm,
+  },
+  adminCloseAuctionBtn: {
+    borderColor: colors.feedback.error,
   },
 });

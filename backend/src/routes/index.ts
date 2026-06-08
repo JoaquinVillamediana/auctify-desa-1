@@ -23,6 +23,7 @@ import ownersRouter from "../modules/owners/owners.routes";
 import inclusionRequestsRouter from "../modules/inclusion-requests/inclusion-requests.routes";
 import metricsRouter from "../modules/metrics/metrics.routes";
 import notificationsRouter from "../modules/notifications/notifications.routes";
+import countriesRouter from "../modules/countries/countries.routes";
 
 const router = Router();
 
@@ -34,6 +35,9 @@ router.use("/auth", authRouter);
 
 // ── Clients (admin) ───────────────────────────────────────────────────────────
 router.use("/clients", clientsRouter);
+
+// ── Countries ─────────────────────────────────────────────────────────────────
+router.use("/countries", countriesRouter);
 
 // ── Payment Methods (F02) ─────────────────────────────────────────────────────
 // Paths completos (/me/payment-methods, /payment-methods/:id) → montado en la raíz /v1.

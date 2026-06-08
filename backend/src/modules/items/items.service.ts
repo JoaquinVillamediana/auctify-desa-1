@@ -243,6 +243,7 @@ export async function createBid(input: CreateBidInput) {
               select: {
                 id: true,
                 category: true,
+                currency: true,
                 version: true,
                 currentItemId: true,
                 status: true,
@@ -309,6 +310,15 @@ export async function createBid(input: CreateBidInput) {
           `Superás el límite del cheque (${reservedAmount}). Comprometido: ${committed._sum.amount ?? 0}`
         );
       }
+    }
+
+    // 3b. Validar moneda: el medio de pago debe coincidir con la moneda de la subasta
+    if (paymentMethod.currency !== auction.currency) {
+      throw new AppError(
+        ErrorCode.CURRENCY_MISMATCH,
+        422,
+        `El medio de pago debe ser en la moneda de la subasta (${auction.currency}).`
+      );
     }
 
     // 4. Recomputar bestBid y lastBid DENTRO de la transacción
