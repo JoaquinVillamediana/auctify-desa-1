@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { get, post } from '@/api/client';
 import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
@@ -11,7 +11,6 @@ import type { Insurance } from '@/api/types';
 
 export default function InsuranceScreen() {
   const { policyNumber } = useLocalSearchParams<{ policyNumber: string }>();
-  const router = useRouter();
 
   const [insurance, setInsurance] = useState<Insurance | null>(null);
   const [loading, setLoading] = useState(true);

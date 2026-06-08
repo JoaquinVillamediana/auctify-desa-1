@@ -941,15 +941,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: 40,
   },
-  navBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-  },
   connectedBadge: {
     backgroundColor: colors.background.secondary,
     borderRadius: 12,

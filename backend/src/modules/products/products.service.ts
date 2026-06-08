@@ -140,15 +140,3 @@ export async function updateProduct(
   });
 }
 
-/** Obtiene un producto con sus fotos. Valida que sea del dueño (o admin). */
-export async function getProduct(productId: number, ownerId: number, isAdmin: boolean) {
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    include: { photos: true },
-  });
-
-  if (!product) throw notFound("Producto");
-  if (!isAdmin && product.ownerId !== ownerId) throw forbidden("No sos el dueño de este producto");
-
-  return product;
-}

@@ -277,13 +277,6 @@ export default function PenaltiesScreen() {
 const styles = StyleSheet.create({
   screenWrap: { flex: 1, backgroundColor: colors.background.primary },
 
-  // ── Pantalla ──
-  screenTitle: {
-    ...typography.heading2,
-    color: colors.text.primary,
-    marginBottom: spacing.lg,
-  },
-
   // ── Banner de cuenta bloqueada ──
   blockedBanner: {
     backgroundColor: colors.feedback.errorBackground,

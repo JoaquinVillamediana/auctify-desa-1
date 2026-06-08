@@ -21,7 +21,6 @@ import {
   unauthorized,
   notFound,
 } from "../../lib/errors";
-import { env } from "../../config/env";
 
 // Número de rounds de bcrypt — mayor es más seguro pero más lento
 const BCRYPT_ROUNDS = 10;

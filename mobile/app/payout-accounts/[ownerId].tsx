@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Alert, TextInput, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { get, post } from '@/api/client';
 import { AppBar } from '@/components/AppBar';
 import { Button } from '@/components/Button';
@@ -12,7 +12,6 @@ import type { PayoutAccount } from '@/api/types';
 
 export default function PayoutAccountsScreen() {
   const { ownerId } = useLocalSearchParams<{ ownerId: string }>();
-  const router = useRouter();
 
   const [accounts, setAccounts] = useState<PayoutAccount[]>([]);
   const [loading, setLoading] = useState(true);
