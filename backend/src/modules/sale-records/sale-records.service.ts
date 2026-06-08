@@ -1,0 +1,258 @@
+import { prisma } from "../../lib/prisma";
+import { notFound, forbidden, validationError, AppError, ErrorCode } from "../../lib/errors";
+import type { JwtPayload } from "../../lib/jwt";
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function createNotification(clientId: number, type: string, title: string, message: string, payload?: Record<string, unknown>) {
+  await prisma.notification.create({
+    data: {
+      clientId,
+      type,
+      title,
+      message,
+      payload: payload ? JSON.stringify(payload) : null,
+    },
+  });
+}
+
+// ── Operaciones ──────────────────────────────────────────────────────────────
+
+export async function getSaleRecordById(id: number, auth: JwtPayload) {
+  const saleRecord = await prisma.saleRecord.findUnique({
+    where: { id },
+    include: {
+      product: { include: { photos: { take: 1 } } },
+      paymentMethod: true,
+    },
+  });
+
+  if (!saleRecord) throw notFound("Registro de venta");
+
+  if (!auth.roles.includes("ADMIN") && saleRecord.clientId !== auth.sub) {
+    throw forbidden("Solo el comprador puede ver esta compra");
+  }
+
+  return saleRecord;
+}
+
+export async function getSaleRecords(
+  filters: { auctionId?: number; clientId?: number; ownerId?: number },
+  auth: JwtPayload
+) {
+  const where: Record<string, unknown> = {};
+
+  if (auth.roles.includes("ADMIN")) {
+    // Admin ve todos, puede filtrar por cualquier campo
+    if (filters.auctionId) where.auctionId = filters.auctionId;
+    if (filters.clientId) where.clientId = filters.clientId;
+    if (filters.ownerId) where.ownerId = filters.ownerId;
+  } else {
+    // Cliente solo ve sus compras
+    where.clientId = auth.sub;
+    if (filters.auctionId) where.auctionId = filters.auctionId;
+  }
+
+  return prisma.saleRecord.findMany({
+    where,
+    include: {
+      product: { include: { photos: { take: 1 } } },
+      paymentMethod: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function createSaleRecord(data: {
+  auctionId: number;
+  ownerId: number;
+  productId: number;
+  clientId: number;
+  amount: number;
+  commission: number;
+  shippingCost?: number;
+  pickupInPerson?: boolean;
+  paymentMethodId: number;
+  boughtByCompany?: boolean;
+}) {
+  const saleRecord = await prisma.saleRecord.create({
+    data: {
+      auctionId: data.auctionId,
+      ownerId: data.ownerId,
+      productId: data.productId,
+      clientId: data.clientId,
+      amount: data.amount,
+      commission: data.commission,
+      shippingCost: data.shippingCost ?? null,
+      pickupInPerson: data.pickupInPerson ?? false,
+      paymentMethodId: data.paymentMethodId,
+      boughtByCompany: data.boughtByCompany ?? false,
+      paymentStatus: "pending",
+    },
+  });
+
+  // Actualizar el ítem del catálogo al estado correcto
+  const catalogItem = await prisma.catalogItem.findFirst({
+    where: { productId: data.productId },
+  });
+
+  if (catalogItem) {
+    await prisma.catalogItem.update({
+      where: { id: catalogItem.id },
+      data: {
+        status: data.boughtByCompany ? "unsold" : "sold",
+        auctioned: true,
+      },
+    });
+  }
+
+  // Notificar al ganador si no es la empresa
+  if (!data.boughtByCompany) {
+    await createNotification(
+      data.clientId,
+      "auction_winner",
+      "¡Ganaste un ítem!",
+      `Felicitaciones, ganaste el ítem por $${data.amount}. Recordá completar el pago.`,
+      { saleRecordId: saleRecord.id, amount: data.amount, commission: data.commission, shippingCost: data.shippingCost }
+    );
+  }
+
+  return saleRecord;
+}
+
+export async function updateShipping(
+  saleRecordId: number,
+  data: { pickupInPerson: boolean; shippingAddress?: string },
+  auth: JwtPayload
+) {
+  const saleRecord = await prisma.saleRecord.findUnique({ where: { id: saleRecordId } });
+  if (!saleRecord) throw notFound("Registro de venta");
+
+  if (saleRecord.clientId !== auth.sub) {
+    throw forbidden("Solo el comprador puede actualizar el envío");
+  }
+
+  if (!data.pickupInPerson && !data.shippingAddress) {
+    throw validationError("Si elegís envío, la dirección es requerida", {
+      shippingAddress: "Requerida cuando pickupInPerson es false",
+    });
+  }
+
+  const updated = await prisma.saleRecord.update({
+    where: { id: saleRecordId },
+    data: {
+      pickupInPerson: data.pickupInPerson,
+      shippingAddress: data.shippingAddress ?? null,
+    },
+  });
+
+  return {
+    ...updated,
+    insuranceLost: data.pickupInPerson,
+  };
+}
+
+export async function paySaleRecord(
+  saleRecordId: number,
+  data: { paymentMethodId: number },
+  auth: JwtPayload
+) {
+  const saleRecord = await prisma.saleRecord.findUnique({ where: { id: saleRecordId } });
+  if (!saleRecord) throw notFound("Registro de venta");
+
+  if (saleRecord.clientId !== auth.sub) {
+    throw forbidden("Solo el comprador puede pagar");
+  }
+
+  // Verificar que el medio de pago pertenece al cliente
+  const paymentMethod = await prisma.paymentMethod.findUnique({
+    where: { id: data.paymentMethodId },
+  });
+
+  if (!paymentMethod || paymentMethod.clientId !== auth.sub) {
+    throw new AppError(ErrorCode.PAYMENT_METHOD_NOT_OWNED, 403, "Ese medio de pago no te pertenece");
+  }
+
+  // Verificar que el medio está verificado
+  if (paymentMethod.status !== "verified") {
+    throw new AppError(ErrorCode.NO_VERIFIED_PAYMENT_METHOD, 403, "El medio de pago no está verificado");
+  }
+
+  // Si es cheque certificado, verificar límite
+  if (paymentMethod.type === "certified_check" && paymentMethod.reservedAmount !== null) {
+    const paidBefore = await prisma.saleRecord.aggregate({
+      _sum: { amount: true },
+      where: {
+        paymentMethodId: data.paymentMethodId,
+        paymentStatus: "paid",
+        id: { not: saleRecordId },
+      },
+    });
+
+    const totalPaid = (paidBefore._sum.amount ?? 0) + saleRecord.amount;
+
+    if (totalPaid > paymentMethod.reservedAmount) {
+      return await handlePaymentFailure({ ...saleRecord, productId: saleRecord.productId }, auth.sub);
+    }
+  }
+
+  // En dev: simular pago exitoso si el medio está verificado
+  const updated = await prisma.saleRecord.update({
+    where: { id: saleRecordId },
+    data: {
+      paymentStatus: "paid",
+      paidAt: new Date(),
+      paymentMethodId: data.paymentMethodId,
+    },
+  });
+
+  return updated;
+}
+
+async function handlePaymentFailure(saleRecord: { id: number; clientId: number; amount: number; auctionId: number; productId: number }, clientId: number) {
+  // Marcar el pago como fallido
+  await prisma.saleRecord.update({
+    where: { id: saleRecord.id },
+    data: { paymentStatus: "failed" },
+  });
+
+  // Crear multa del 10%
+  const penaltyAmount = saleRecord.amount * 0.1;
+
+  // Buscar el catalogItem correspondiente al producto
+  const catalogItem = await prisma.catalogItem.findFirst({
+    where: { productId: saleRecord.productId },
+  });
+
+  const penalty = await prisma.penalty.create({
+    data: {
+      clientId: saleRecord.clientId,
+      auctionId: saleRecord.auctionId,
+      itemId: catalogItem?.id ?? 0,
+      amount: penaltyAmount,
+      status: "pending",
+    },
+  });
+
+  // Bloquear cliente
+  await prisma.client.update({
+    where: { id: clientId },
+    data: { blocked: true },
+  });
+
+  // Notificar al cliente
+  await prisma.notification.create({
+    data: {
+      clientId: saleRecord.clientId,
+      type: "penalty",
+      title: "Pago fallido — multa generada",
+      message: `No se pudo procesar el pago. Se generó una multa de $${penaltyAmount.toFixed(2)}. Tenés 72 hs para regularizar.`,
+      payload: JSON.stringify({ penaltyAmount, penaltyId: penalty.id }),
+    },
+  });
+
+  throw new AppError(ErrorCode.INSUFFICIENT_FUNDS, 422, "Fondos insuficientes", {
+    penaltyAmount,
+    penaltyId: penalty.id,
+  });
+}

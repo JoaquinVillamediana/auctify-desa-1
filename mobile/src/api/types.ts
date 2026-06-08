@@ -59,7 +59,7 @@ export interface Client {
 
 // ─────────────── Auction ───────────────
 
-export type AuctionStatus = 'open' | 'closed';
+export type AuctionStatus = 'open' | 'closed' | 'scheduled';
 
 export interface Auction {
   id: number;
@@ -75,6 +75,8 @@ export interface Auction {
   streamingUrl?: string | null;
   isCollection: boolean;
   collectionName?: string | null;
+  itemCount?: number;
+  attendeeCount?: number;
 }
 
 export interface AuctionDetail extends Auction {
@@ -195,6 +197,111 @@ export interface Metrics {
     attended: number;
     won: number;
   }>;
+}
+
+// ─────────────── SaleRecord ───────────────
+
+export type SalePaymentStatus = 'pending' | 'paid' | 'failed';
+
+export interface SaleRecord {
+  id: number;
+  auctionId: number;
+  ownerId: number;
+  productId: number;
+  clientId: number;
+  amount: number;
+  commission: number;
+  shippingCost?: number | null;
+  pickupInPerson: boolean;
+  shippingAddress?: string | null;
+  paymentMethodId: number;
+  boughtByCompany: boolean;
+  paymentStatus: SalePaymentStatus;
+  paidAt?: string | null;
+  createdAt: string;
+  product?: {
+    id: number;
+    catalogDescription?: string | null;
+    fullDescription: string;
+    photos: Array<{ photoUrl: string }>;
+  };
+}
+
+// ─────────────── CatalogItemDetail ───────────────
+
+export interface CatalogItemFull {
+  id: number;
+  catalogId: number;
+  lotNumber: number;
+  productId: number;
+  catalogDescription?: string | null;
+  basePrice?: number | null;
+  commission: number;
+  status: string;
+  auctioned: boolean;
+  photo?: string | null;
+  bestBid?: number | null;
+  minBidAllowed?: number | null;
+  maxBidAllowed?: number | null;
+  product?: {
+    id: number;
+    fullDescription: string;
+    catalogDescription?: string | null;
+    pieceCount: number;
+    artist?: string | null;
+    historicalDate?: string | null;
+    history?: string | null;
+    photos: string[];
+  };
+}
+
+// ─────────────── AuctionCatalog ───────────────
+
+export interface AuctionCatalog {
+  catalogId: number;
+  description: string;
+  auctionId: number;
+  items: Array<{
+    id: number;
+    lotNumber: number;
+    catalogDescription?: string | null;
+    basePrice?: number | null;
+    commission: number;
+    status: string;
+    auctioned: boolean;
+    photo?: string | null;
+  }>;
+}
+
+// ─────────────── Insurance ───────────────
+
+export interface Insurance {
+  policyNumber: string;
+  company: string;
+  combinedPolicy: boolean;
+  amount: number;
+}
+
+// ─────────────── PayoutAccount ───────────────
+
+export interface PayoutAccount {
+  id: number;
+  ownerId: number;
+  bank: string;
+  countryId?: number | null;
+  currency: 'ARS' | 'USD';
+  cbuOrIban: string;
+  accountHolder: string;
+  declaredAt: string;
+}
+
+// ─────────────── ProductLocation ───────────────
+
+export interface ProductLocation {
+  productId: number;
+  warehouse: string;
+  address: string;
+  receivedAt: string;
 }
 
 // ─────────────── InclusionRequest ───────────────

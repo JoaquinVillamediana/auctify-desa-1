@@ -30,6 +30,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="purchases"
+        options={{
+          title: 'Compras',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🛒</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="items"
         options={{
           title: 'Mis artículos',

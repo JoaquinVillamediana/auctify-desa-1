@@ -1,7 +1,6 @@
 /**
  * Router principal /v1
- * Monta todos los módulos del API. Los no implementados tienen un placeholder
- * comentado que indica el feature doc de referencia.
+ * Monta todos los módulos del API.
  *
  * Para agregar un nuevo módulo:
  *   1. Crear src/modules/<nombre>/<nombre>.routes.ts
@@ -13,6 +12,12 @@ import { Router } from "express";
 import healthRouter from "../modules/health/health.routes";
 import authRouter from "../modules/auth/auth.routes";
 import clientsRouter from "../modules/clients/clients.routes";
+import auctionsRouter from "../modules/auctions/auctions.routes";
+import itemsRouter from "../modules/items/items.routes";
+import saleRecordsRouter from "../modules/sale-records/sale-records.routes";
+import insuranceRouter from "../modules/insurance/insurance.routes";
+import productsRouter from "../modules/products/products.routes";
+import ownersRouter from "../modules/owners/owners.routes";
 
 const router = Router();
 
@@ -20,112 +25,60 @@ const router = Router();
 router.use("/health", healthRouter);
 
 // ── Auth (F01) ────────────────────────────────────────────────────────────────
-// POST /auth/register, /auth/activate, /auth/login, GET /auth/me
 router.use("/auth", authRouter);
 
-// ── Clients (F03) ─────────────────────────────────────────────────────────────
-// PATCH /clients/:id (admisión) — mínimo implementado para desbloquear F01
-// TODO F03: GET /clients, GET /clients/:id, baja lógica, métricas
-// Ver docs/features/F03-clients.md
+// ── Clients (admin) ───────────────────────────────────────────────────────────
 router.use("/clients", clientsRouter);
 
-// ── Payment Methods (F02) ─────────────────────────────────────────────────────
-// TODO: implementar módulo paymentMethods
-// GET  /me/payment-methods
-// POST /me/payment-methods
-// POST /payment-methods/:id/verify (admin)
-// DELETE /payment-methods/:id
-// Ver docs/features/F02-payment-methods.md
-// router.use("/payment-methods", paymentMethodsRouter);
-// router.use("/me/payment-methods", myPaymentMethodsRouter);
+// ── Auctions (F03) ────────────────────────────────────────────────────────────
+// GET  /auctions, /auctions/:id, /auctions/:id/catalog, /auctions/:id/streaming
+// POST /auctions (admin), PATCH /auctions/:id (admin)
+router.use("/auctions", auctionsRouter);
 
-// ── Auctions (F04) ────────────────────────────────────────────────────────────
-// TODO: implementar módulo auctions
-// GET  /auctions, /auctions/:id
-// POST /auctions (admin)
-// PATCH /auctions/:id (admin)
-// POST /auctions/:id/attendees
-// GET  /auctions/:id/attendees (admin)
-// POST /auctions/:id/connect, /disconnect
-// GET  /auctions/:id/live-status
-// GET  /auctions/:id/streaming
-// Ver docs/features/F04-auctions.md
-// router.use("/auctions", auctionsRouter);
+// ── Items (F03) ───────────────────────────────────────────────────────────────
+// GET  /items, /items/:id
+// POST /items (admin), PATCH /items/:id (admin)
+router.use("/items", itemsRouter);
 
-// ── Items / Bids (F05) ────────────────────────────────────────────────────────
-// TODO: implementar módulo items y bids
-// GET  /items, /items/:id, /items/:id/bids
-// POST /items (admin, agrega al catálogo)
-// POST /items/:id/bids (postor conectado)
-// Ver docs/features/F05-bidding.md
-// router.use("/items", itemsRouter);
+// ── Sale Records (F07) ────────────────────────────────────────────────────────
+// GET  /sale-records
+// POST /sale-records (admin/system)
+// PATCH /sale-records/:id/shipping
+// POST  /sale-records/:id/pay
+router.use("/sale-records", saleRecordsRouter);
 
-// ── Products (F06) ────────────────────────────────────────────────────────────
-// TODO: implementar módulo products
-// GET  /products, /products/:id
-// POST /products (owner)
-// PATCH /products/:id
-// POST /products/:id/photos
+// ── Insurance (F11) ───────────────────────────────────────────────────────────
+// GET  /insurance/:policyNumber
+// POST /insurance/:policyNumber/coverage-increase
+router.use("/insurance", insuranceRouter);
+
+// ── Products (F11 — ubicación) ────────────────────────────────────────────────
 // GET  /products/:id/location
-// Ver docs/features/F06-products.md
-// router.use("/products", productsRouter);
+router.use("/products", productsRouter);
 
-// ── Inclusion Requests (F07) ──────────────────────────────────────────────────
-// TODO: implementar módulo inclusionRequests
-// POST /inclusion-requests (owner)
-// GET  /inclusion-requests (owner/admin)
-// GET  /inclusion-requests/:id
-// POST /inclusion-requests/:id/inspection (admin)
-// POST /inclusion-requests/:id/owner-response (owner)
-// Ver docs/features/F07-inclusion-requests.md
+// ── Owners (F11 — cuentas de cobro) ──────────────────────────────────────────
+// GET  /owners/:id/payout-accounts
+// POST /owners/:id/payout-accounts
+router.use("/owners", ownersRouter);
+
+// ── Payment Methods (F02) ─────────────────────────────────────────────────────
+// TODO: implementar módulo paymentMethods — ver docs/features/F02-payment-methods.md
+// router.use("/payment-methods", paymentMethodsRouter);
+
+// ── Inclusion Requests (F06) ──────────────────────────────────────────────────
+// TODO: implementar módulo inclusionRequests — ver docs/features/F06-inclusion-requests.md
 // router.use("/inclusion-requests", inclusionRequestsRouter);
 
-// ── Sale Records (F08) ────────────────────────────────────────────────────────
-// TODO: implementar módulo saleRecords
-// GET  /sale-records
-// PATCH /sale-records/:id/shipping (comprador)
-// POST /sale-records/:id/pay (comprador) ⭐ nuevo en E1
-// Ver docs/features/F08-sale-records.md
-// router.use("/sale-records", saleRecordsRouter);
-
-// ── Penalties (F08) ───────────────────────────────────────────────────────────
-// TODO: implementar módulo penalties
-// GET  /me/penalties, /clients/:id/penalties
-// POST /penalties/:id/pay
-// Ver docs/features/F08-sale-records.md (multas)
+// ── Penalties ─────────────────────────────────────────────────────────────────
+// TODO: implementar módulo penalties — ver docs/features/F10-penalties.md
 // router.use("/penalties", penaltiesRouter);
 
 // ── Notifications (F09) ───────────────────────────────────────────────────────
-// TODO: implementar módulo notifications
-// GET  /me/notifications
-// POST /notifications/:id/read
-// Ver docs/features/F09-notifications.md
+// TODO: implementar módulo notifications — ver docs/features/F09-notifications.md
 // router.use("/notifications", notificationsRouter);
 
 // ── Metrics (F08) ─────────────────────────────────────────────────────────────
-// TODO: implementar módulo metrics
-// GET  /me/metrics, /clients/:id/metrics (admin)
-// Ver docs/features/F08-sale-records.md (métricas)
+// TODO: implementar módulo metrics — ver docs/features/F08-metrics.md
 // router.use("/metrics", metricsRouter);
-
-// ── Owners (F07) ──────────────────────────────────────────────────────────────
-// TODO: implementar módulo owners
-// GET  /owners, /owners/:id
-// POST /owners
-// GET  /owners/:id/payout-accounts
-// POST /owners/:id/payout-accounts
-// Ver docs/features/F07-inclusion-requests.md
-// router.use("/owners", ownersRouter);
-
-// ── Countries ─────────────────────────────────────────────────────────────────
-// TODO: implementar endpoint de países (simple, sin módulo separado necesario)
-// GET /countries
-// router.use("/countries", countriesRouter);
-
-// ── Insurance ─────────────────────────────────────────────────────────────────
-// TODO: implementar módulo insurance
-// GET  /insurance/:policy
-// POST /insurance/:policy/coverage-increase
-// router.use("/insurance", insuranceRouter);
 
 export default router;
