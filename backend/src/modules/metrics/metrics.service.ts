@@ -56,11 +56,14 @@ export async function computeMetrics(clientId: number) {
     categoryMap.get(cat)!.won++;
   }
 
-  const byCategory = Array.from(categoryMap.entries()).map(([category, stats]) => ({
-    category,
-    attended: stats.attended,
-    won: stats.won,
-  }));
+  const byCategory = Array.from(categoryMap.entries())
+    .map(([category, stats]) => ({
+      category,
+      attended: stats.attended,
+      won: stats.won,
+    }))
+    // F08: no listar categorías sin participación (attended === 0).
+    .filter((c) => c.attended > 0);
 
   return { auctionsAttended, auctionsWon, totalBidAmount, totalPaidAmount, bidCount, byCategory };
 }
