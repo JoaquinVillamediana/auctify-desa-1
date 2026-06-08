@@ -12,6 +12,29 @@ info:
     ## Tiempo real (polling)
     El front obtiene el estado actual de la subasta en vivo mediante polling
     sobre `GET /auctions/{id}/live-status`.
+    `live-status` soporta solicitudes condicionales mediante el contador `version`:
+    el front re-renderiza solo cuando `version` cambia respecto al valor local anterior.
+
+    ## Cambios sobre la Entrega 1
+
+    1. **Estado `scheduled`** — se agrega `scheduled` al enum de estado de subasta.
+       Ciclo de vida: `scheduled → open → closed`. Las subastas con fecha/hora futura
+       arrancan en `scheduled`.
+    2. **`basePrice` visible a cualquier usuario registrado** — cualquier cliente
+       autenticado ve `basePrice` (no hace falta ser asistente de la subasta).
+       Solo requests anónimas reciben `basePrice: null`.
+    3. **Identidad desde el JWT** — se eliminan `clientId`/`attendeeId` del body en
+       operaciones propias del usuario logueado. Se agrega `GET /auth/me` y los alias
+       `/me/...` (métricas, notificaciones, medios de pago, multas). Ver
+       `docs/decisions/ADR-003-jwt-identity.md` y `docs/03-auth-and-roles.md`.
+    4. **Endpoint de pago** — se agrega `POST /sale-records/{id}/pay`; también se
+       añaden `paymentStatus` y `paidAt` al schema `SaleRecord`.
+    5. **DNI** — el campo `document` queda explícitamente documentado como DNI en
+       `Person`, `Client` y los formularios de registro/login.
+    6. **`ErrorCode`** — se agregan `VALIDATION_ERROR` e `INSUFFICIENT_FUNDS`.
+    7. **`x-roles`** — todos los endpoints tienen la extensión `x-roles` con los roles
+       permitidos: `ANON`, `CLIENT`, `OWNER`, `ADMIN`, `SYSTEM`. Ver
+       `docs/03-auth-and-roles.md`.
 
 servers:
   - url: http://localhost:8080/v1
@@ -51,6 +74,7 @@ paths:
     post:
       tags: [Auth]
       security: []
+      x-roles: [ANON]
       summary: Iniciar sesión
       requestBody:
         required: true
@@ -60,7 +84,7 @@ paths:
               type: object
               required: [document, password]
               properties:
-                document: { type: string, example: "30111222" }
+                document: { type: string, description: "DNI del cliente", example: "30111222" }
                 password: { type: string, format: password, example: "Secret123!" }
       responses:
         '200':
@@ -83,6 +107,7 @@ paths:
     post:
       tags: [Auth]
       security: []
+      x-roles: [ANON]
       summary: Registro inicial del postor (etapa 1)
       description: |
         Alta del postor con datos personales y fotos del documento (frente y dorso).
@@ -96,7 +121,7 @@ paths:
               type: object
               required: [document, firstName, lastName, email, address, countryId, idCardFront, idCardBack]
               properties:
-                document:    { type: string }
+                document:    { type: string, description: "DNI del postulante", example: "30111222" }
                 firstName:   { type: string }
                 lastName:    { type: string }
                 email:       { type: string, format: email }
@@ -125,6 +150,7 @@ paths:
     post:
       tags: [Auth]
       security: []
+      x-roles: [ANON]
       summary: Activar cuenta y generar clave (etapa 2)
       description: |
         Tras ser admitido, el postor recibe un token por mail y completa el alta
@@ -152,11 +178,29 @@ paths:
         '400': { description: Token inválido o expirado }
         '409': { description: Cuenta ya activada }
 
+  /auth/me:
+    get:
+      tags: [Auth]
+      x-roles: [CLIENT, OWNER, ADMIN]
+      summary: Obtener usuario autenticado actual
+      description: |
+        Devuelve el cliente asociado al JWT del header `Authorization`.
+        Permite al front conocer su propio `clientId` y datos sin necesidad de
+        almacenarlos localmente. Ver `docs/decisions/ADR-003-jwt-identity.md`.
+      responses:
+        '200':
+          description: Cliente actual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '401': { description: Token ausente o inválido }
+
   # ─────────────── COUNTRIES ───────────────
 
   /countries:
     get:
       tags: [Countries]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Listar países
       responses:
         '200':
@@ -172,6 +216,7 @@ paths:
   /clients:
     get:
       tags: [Clients]
+      x-roles: [ADMIN]
       summary: Listar clientes
       parameters:
         - in: query
@@ -192,6 +237,7 @@ paths:
   /clients/{id}:
     get:
       tags: [Clients]
+      x-roles: [ADMIN]
       summary: Obtener cliente por ID
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -204,6 +250,7 @@ paths:
 
     patch:
       tags: [Clients]
+      x-roles: [ADMIN]
       summary: Actualizar cliente (o baja lógica con active=false)
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:
@@ -222,6 +269,7 @@ paths:
   /clients/{id}/metrics:
     get:
       tags: [Metrics]
+      x-roles: [ADMIN]
       summary: Obtener métricas del cliente
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -237,6 +285,7 @@ paths:
   /clients/{id}/payment-methods:
     get:
       tags: [Payment Methods]
+      x-roles: [CLIENT, ADMIN]
       summary: Listar medios de pago del cliente
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -250,6 +299,7 @@ paths:
 
     post:
       tags: [Payment Methods]
+      x-roles: [CLIENT, ADMIN]
       summary: Registrar nuevo medio de pago
       description: |
         Permite registrar cuenta bancaria (nacional o extranjera), tarjeta de crédito
@@ -271,6 +321,7 @@ paths:
   /payment-methods/{id}:
     delete:
       tags: [Payment Methods]
+      x-roles: [CLIENT]
       summary: Eliminar medio de pago
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -280,6 +331,7 @@ paths:
   /payment-methods/{id}/verify:
     post:
       tags: [Payment Methods]
+      x-roles: [ADMIN]
       summary: Verificar medio de pago (uso interno empresa)
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:
@@ -305,6 +357,7 @@ paths:
   /owners:
     get:
       tags: [Owners]
+      x-roles: [OWNER, ADMIN]
       summary: Listar dueños
       responses:
         '200':
@@ -317,6 +370,7 @@ paths:
 
     post:
       tags: [Owners]
+      x-roles: [ADMIN]
       summary: Crear dueño
       requestBody:
         required: true
@@ -333,6 +387,7 @@ paths:
   /owners/{id}:
     get:
       tags: [Owners]
+      x-roles: [OWNER, ADMIN]
       summary: Obtener dueño por ID
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -346,6 +401,7 @@ paths:
   /owners/{id}/payout-accounts:
     get:
       tags: [Payout Accounts]
+      x-roles: [OWNER, ADMIN]
       summary: Listar cuentas de cobro del dueño
       description: Cuentas a la vista (incluso del exterior) donde se acreditan las ventas.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -360,6 +416,7 @@ paths:
 
     post:
       tags: [Payout Accounts]
+      x-roles: [OWNER, ADMIN]
       summary: Declarar cuenta de cobro
       description: La cuenta debe declararse ANTES del inicio de la subasta.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -380,11 +437,12 @@ paths:
   /auctions:
     get:
       tags: [Auctions]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Listar subastas
       parameters:
         - in: query
           name: status
-          schema: { type: string, enum: [open, closed] }
+          schema: { type: string, enum: [scheduled, open, closed] }
         - in: query
           name: category
           schema: { type: string, enum: [common, special, silver, gold, platinum] }
@@ -409,6 +467,7 @@ paths:
 
     post:
       tags: [Auctions]
+      x-roles: [ADMIN]
       summary: Crear subasta
       requestBody:
         required: true
@@ -426,6 +485,7 @@ paths:
   /auctions/{id}:
     get:
       tags: [Auctions]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Obtener subasta por ID
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -438,6 +498,7 @@ paths:
 
     patch:
       tags: [Auctions]
+      x-roles: [ADMIN]
       summary: Actualizar subasta
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:
@@ -456,6 +517,7 @@ paths:
   /auctions/{id}/streaming:
     get:
       tags: [Auctions]
+      x-roles: [CLIENT, OWNER, ADMIN]
       summary: Obtener URL del streaming de la subasta
       description: Devuelve la URL del servicio externo de streaming para usuarios admitidos.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -479,11 +541,12 @@ paths:
   /auctions/{id}/catalog:
     get:
       tags: [Catalogs]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Obtener catálogo de una subasta
       description: |
-        El catálogo es público, pero `basePrice` solo se devuelve si el cliente
-        está **registrado como asistente** en la subasta. Para no registrados
-        o anónimos, `basePrice` será `null`.
+        El catálogo es público. `basePrice` se devuelve a cualquier usuario
+        **autenticado** (cualquier categoría); no es necesario ser asistente de
+        la subasta. Para requests **anónimas** (sin token), `basePrice` será `null`.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
         '200':
@@ -496,6 +559,7 @@ paths:
   /auctions/{id}/attendees:
     get:
       tags: [Auctions]
+      x-roles: [ADMIN]
       summary: Listar asistentes registrados en la subasta
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -510,18 +574,24 @@ paths:
 
     post:
       tags: [Auctions]
+      x-roles: [CLIENT, ADMIN]
       summary: Registrar cliente como asistente/postor en subasta
-      description: El `bidderNumber` se asigna automáticamente de forma secuencial dentro de cada subasta.
+      description: |
+        El `bidderNumber` se asigna automáticamente de forma secuencial dentro de cada subasta.
+        El cliente logueado se registra a sí mismo (identidad tomada del token).
+        Solo un `ADMIN` puede registrar a otro cliente pasando `clientId` en el body.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
               type: object
-              required: [clientId]
               properties:
-                clientId: { type: integer, example: 21 }
+                clientId:
+                  type: integer
+                  example: 21
+                  description: "Solo para ADMIN: ID del cliente a registrar. Omitir en auto-registro (se toma del token)."
       responses:
         '201':
           description: Asistente registrado (bidderNumber asignado automáticamente)
@@ -543,20 +613,13 @@ paths:
   /auctions/{id}/connect:
     post:
       tags: [Auction Session]
+      x-roles: [CLIENT]
       summary: Conectarse en vivo a una subasta
       description: |
         Inicia una sesión activa. Un cliente NO puede tener más de una sesión
-        activa simultánea.
+        activa simultánea. La identidad del cliente se obtiene del JWT; no se
+        envía `clientId` en el body.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [clientId]
-              properties:
-                clientId: { type: integer }
       responses:
         '200':
           description: Sesión iniciada
@@ -579,17 +642,10 @@ paths:
   /auctions/{id}/disconnect:
     post:
       tags: [Auction Session]
+      x-roles: [CLIENT]
       summary: Desconectarse de una subasta
+      description: La identidad del cliente se obtiene del JWT; no se envía `clientId` en el body.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [clientId]
-              properties:
-                clientId: { type: integer }
       responses:
         '204': { description: Sesión cerrada }
         '404': { description: Sesión no encontrada }
@@ -599,6 +655,7 @@ paths:
   /auctions/{id}/live-status:
     get:
       tags: [Auction Live Status]
+      x-roles: [CLIENT, ADMIN]
       summary: Estado en vivo de la subasta (para polling)
       description: |
         Endpoint para polling cada 2–3 segundos. Devuelve el estado actual:
@@ -606,12 +663,11 @@ paths:
 
         `version` es un contador incremental que cambia con cada evento.
         El front compara con su valor local y solo re-renderiza si cambió.
+
+        `youWereOutbid` se calcula a partir del JWT del request; no se envía
+        `clientId` como query param.
       parameters:
         - { $ref: '#/components/parameters/IdPath' }
-        - in: query
-          name: clientId
-          description: Si se envía, incluye `youWereOutbid`
-          schema: { type: integer }
       responses:
         '200':
           description: Estado actual de la subasta
@@ -630,6 +686,7 @@ paths:
   /items:
     get:
       tags: [Items]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Listar items de catálogo
       parameters:
         - in: query
@@ -653,6 +710,7 @@ paths:
 
     post:
       tags: [Items]
+      x-roles: [ADMIN]
       summary: Crear item de catálogo
       requestBody:
         required: true
@@ -669,6 +727,7 @@ paths:
   /items/{id}:
     get:
       tags: [Items]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Obtener item por ID
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -682,6 +741,7 @@ paths:
   /items/{id}/bids:
     get:
       tags: [Bids]
+      x-roles: [ANON, CLIENT, OWNER, ADMIN]
       summary: Obtener historial de pujos de un item
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -696,6 +756,7 @@ paths:
 
     post:
       tags: [Bids]
+      x-roles: [CLIENT]
       summary: Crear pujo para un item
       description: |
         **Reglas de validación:**
@@ -705,7 +766,10 @@ paths:
         4. `amount` <= lastBid + 20% del precio base.
         5. Reglas 3 y 4 **no aplican** a categorías `gold` y `platinum`.
         6. Si el medio de pago es cheque certificado, la suma de compras no puede superar el monto del cheque.
-        7. `paymentMethodId` debe pertenecer al `attendee.clientId`; si no → 403 `PAYMENT_METHOD_NOT_OWNED`.
+        7. `paymentMethodId` debe pertenecer al cliente del token; si no → 403 `PAYMENT_METHOD_NOT_OWNED`.
+
+        El servidor resuelve el `attendeeId` a partir del `clientId` del JWT y el `auctionId` del ítem.
+        El front **no envía `attendeeId`**.
 
         **Concurrencia:** enviar header `Idempotency-Key`. El servidor no acepta
         otro pujo del mismo asistente hasta confirmar el anterior.
@@ -721,9 +785,8 @@ paths:
           application/json:
             schema:
               type: object
-              required: [attendeeId, amount, paymentMethodId]
+              required: [amount, paymentMethodId]
               properties:
-                attendeeId:      { type: integer, example: 45 }
                 amount:          { type: number, format: double, example: 15100 }
                 paymentMethodId: { type: integer, example: 12 }
       responses:
@@ -759,6 +822,7 @@ paths:
   /products:
     get:
       tags: [Products]
+      x-roles: [OWNER, ADMIN]
       summary: Listar productos
       parameters:
         - in: query
@@ -778,6 +842,7 @@ paths:
 
     post:
       tags: [Products]
+      x-roles: [OWNER, ADMIN]
       summary: Crear producto (o draft para solicitud de inclusión)
       description: |
         Si se crea como draft para inclusión, `available` será `false` hasta
@@ -797,6 +862,7 @@ paths:
   /products/{id}:
     get:
       tags: [Products]
+      x-roles: [OWNER, ADMIN]
       summary: Obtener producto por ID
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -809,6 +875,7 @@ paths:
 
     patch:
       tags: [Products]
+      x-roles: [OWNER, ADMIN]
       summary: Actualizar producto
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       requestBody:
@@ -827,6 +894,7 @@ paths:
   /products/{id}/location:
     get:
       tags: [Products]
+      x-roles: [OWNER, ADMIN]
       summary: Obtener ubicación física (depósito) del producto
       description: Visible para el dueño del producto.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -841,6 +909,7 @@ paths:
   /products/{id}/photos:
     get:
       tags: [Photos]
+      x-roles: [OWNER, ADMIN]
       summary: Obtener fotos de un producto
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
       responses:
@@ -855,6 +924,7 @@ paths:
 
     post:
       tags: [Photos]
+      x-roles: [OWNER, ADMIN]
       summary: Agregar foto a producto
       description: Para solicitudes de inclusión se requieren al menos 6 fotos.
       parameters: [{ $ref: '#/components/parameters/IdPath' }]
@@ -879,6 +949,7 @@ paths:
   /inclusion-requests:
     get:
       tags: [Inclusion Requests]
+      x-roles: [OWNER, ADMIN]
       summary: Listar solicitudes de inclusión de bienes
       parameters:
         - in: query
@@ -900,6 +971,7 @@ paths:
 
     post:
       tags: [Inclusion Requests]
+      x-roles: [OWNER, ADMIN]
       summary: Solicitar inclusión de un bien en futuras subastas
       description: |
         Flujo:
