@@ -1,104 +1,155 @@
+/**
+ * Servicio de subastas, catálogo y sesiones en vivo.
+ * Ver docs/features/F03-auctions.md, F04-auction-session-live.md y F05-bidding.md
+ *
+ * Exporta computeRange() para reutilizarlo en items/bids.
+ */
+
 import { prisma } from "../../lib/prisma";
-import { notFound, forbidden, AppError, ErrorCode } from "../../lib/errors";
-import type { JwtPayload } from "../../lib/jwt";
+import { AppError, ErrorCode, notFound } from "../../lib/errors";
 
-const CATEGORY_ORDER = ["common", "special", "silver", "gold", "platinum"];
+// ── Constantes de categoría ─────────────────────────────────────────────────
 
-function categoryLevel(cat: string): number {
-  return CATEGORY_ORDER.indexOf(cat);
+const CATEGORY_ORDER = ["common", "special", "silver", "gold", "platinum"] as const;
+type Category = (typeof CATEGORY_ORDER)[number];
+
+const EXEMPT_CATEGORIES: string[] = ["gold", "platinum"];
+
+// ── Helper de rango de puja ─────────────────────────────────────────────────
+
+export interface BidRange {
+  minBidAllowed: number | null;
+  maxBidAllowed: number | null;
 }
 
-export async function getAuctions(
-  filters: {
-    status?: string;
-    category?: string;
-    currency?: string;
-    date?: string;
-    accessibleForClient?: boolean;
-  },
-  auth?: JwtPayload
-) {
-  const where: Record<string, unknown> = {};
-
-  if (filters.status) where.status = filters.status;
-  if (filters.category) where.category = filters.category;
-  if (filters.currency) where.currency = filters.currency;
-
-  if (filters.date) {
-    const start = new Date(filters.date);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    where.startsAt = { gte: start, lt: end };
+/**
+ * Calcula el rango [min, max] permitido para la próxima puja.
+ *
+ * Reglas (F05):
+ *   - base = item.basePrice
+ *   - Primera puja: minBidAllowed = base
+ *   - Con pujas previas: minBidAllowed = bestBid + 0.01 * base
+ *   - maxBidAllowed = lastBidAmount + 0.20 * base (solo si hay lastBid; else null)
+ *   - Si auction.category ∈ {gold, platinum} → min/max = null (sin límites)
+ */
+export function computeRange(
+  item: { basePrice: number },
+  auctionCategory: string,
+  bestBid: number | null,
+  lastBidAmount: number | null
+): BidRange {
+  if (EXEMPT_CATEGORIES.includes(auctionCategory)) {
+    return { minBidAllowed: null, maxBidAllowed: null };
   }
 
-  if (filters.accessibleForClient && auth) {
-    const client = await prisma.client.findUnique({ where: { id: auth.sub } });
-    if (client?.category) {
-      const level = categoryLevel(client.category);
-      where.category = { in: CATEGORY_ORDER.slice(0, level + 1) };
-    }
-  }
+  const base = item.basePrice;
 
-  const auctions = await prisma.auction.findMany({
-    where,
-    include: {
-      catalog: {
-        include: { _count: { select: { items: true } } },
-      },
-      _count: { select: { attendees: true } },
-    },
-    orderBy: { startsAt: "desc" },
-  });
+  const minBidAllowed =
+    bestBid !== null
+      ? bestBid + 0.01 * base
+      : base;
 
-  return auctions.map((a) => ({
+  const maxBidAllowed =
+    lastBidAmount !== null
+      ? lastBidAmount + 0.2 * base
+      : null;
+
+  return { minBidAllowed, maxBidAllowed };
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function isCategorySufficient(
+  auctionCategory: string,
+  clientCategory: string | null
+): boolean {
+  const aIdx = CATEGORY_ORDER.indexOf(auctionCategory as Category);
+  const cIdx = CATEGORY_ORDER.indexOf(clientCategory as Category);
+  if (aIdx === -1 || cIdx === -1) return false;
+  return aIdx <= cIdx;
+}
+
+function mapAuction(a: {
+  id: number;
+  startsAt: Date;
+  status: string;
+  currency: string;
+  category: string;
+  auctioneerId: number | null;
+  location: string | null;
+  attendeeCapacity: number | null;
+  hasWarehouse: boolean;
+  ownSecurity: boolean;
+  streamingUrl: string | null;
+  isCollection: boolean;
+  collectionName: string | null;
+}) {
+  return {
     id: a.id,
-    startsAt: a.startsAt,
+    startsAt: a.startsAt.toISOString(),
     status: a.status,
     currency: a.currency,
     category: a.category,
+    auctioneerId: a.auctioneerId,
     location: a.location,
     attendeeCapacity: a.attendeeCapacity,
     hasWarehouse: a.hasWarehouse,
     ownSecurity: a.ownSecurity,
+    streamingUrl: a.streamingUrl,
     isCollection: a.isCollection,
     collectionName: a.collectionName,
-    itemCount: a.catalog?._count.items ?? 0,
-    attendeeCount: a._count.attendees,
-  }));
+  };
 }
 
-export async function getAuctionById(id: number, auth?: JwtPayload) {
+// ── GET /auctions ────────────────────────────────────────────────────────────
+
+export interface ListAuctionsFilters {
+  status?: string;
+  category?: string;
+  currency?: string;
+  date?: string;
+}
+
+export async function listAuctions(filters: ListAuctionsFilters) {
+  const where: Record<string, unknown> = {};
+  if (filters.status) where.status = filters.status;
+  if (filters.category) where.category = filters.category;
+  if (filters.currency) where.currency = filters.currency;
+  if (filters.date) {
+    const day = new Date(filters.date);
+    const nextDay = new Date(day);
+    nextDay.setDate(nextDay.getDate() + 1);
+    where.startsAt = { gte: day, lt: nextDay };
+  }
+
+  const auctions = await prisma.auction.findMany({ where, orderBy: { startsAt: "asc" } });
+  return auctions.map(mapAuction);
+}
+
+// ── GET /auctions/:id ────────────────────────────────────────────────────────
+
+export async function getAuctionDetail(auctionId: number) {
   const auction = await prisma.auction.findUnique({
-    where: { id },
+    where: { id: auctionId },
     include: {
       catalog: {
-        include: { _count: { select: { items: true } } },
+        include: { items: { select: { id: true } } },
       },
-      _count: { select: { attendees: true } },
+      attendees: { select: { id: true } },
     },
   });
 
   if (!auction) throw notFound("Subasta");
 
   return {
-    id: auction.id,
-    startsAt: auction.startsAt,
-    status: auction.status,
-    currency: auction.currency,
-    category: auction.category,
-    location: auction.location,
-    auctioneerId: auction.auctioneerId,
-    attendeeCapacity: auction.attendeeCapacity,
-    hasWarehouse: auction.hasWarehouse,
-    ownSecurity: auction.ownSecurity,
-    isCollection: auction.isCollection,
-    collectionName: auction.collectionName,
+    ...mapAuction(auction),
     catalogId: auction.catalog?.id ?? null,
-    itemCount: auction.catalog?._count.items ?? 0,
-    attendeeCount: auction._count.attendees,
-    streamingUrl: auth ? auction.streamingUrl : null,
+    itemCount: auction.catalog?.items.length ?? 0,
+    attendeeCount: auction.attendees.length,
   };
 }
+
+// ── POST /auctions (admin) ────────────────────────────────────────────────────
 
 export async function createAuction(data: {
   startsAt: string;
@@ -131,6 +182,8 @@ export async function createAuction(data: {
     },
   });
 }
+
+// ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
 
 export async function updateAuction(
   id: number,
@@ -171,7 +224,9 @@ export async function updateAuction(
   });
 }
 
-export async function getAuctionCatalog(auctionId: number, auth?: JwtPayload) {
+// ── GET /auctions/:id/catalog ─────────────────────────────────────────────────
+
+export async function getAuctionCatalog(auctionId: number, isAuthenticated: boolean) {
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
     include: {
@@ -191,8 +246,6 @@ export async function getAuctionCatalog(auctionId: number, auth?: JwtPayload) {
   if (!auction) throw notFound("Subasta");
   if (!auction.catalog) throw notFound("Catálogo");
 
-  const isAuthed = !!auth;
-
   return {
     catalogId: auction.catalog.id,
     description: auction.catalog.description,
@@ -201,7 +254,7 @@ export async function getAuctionCatalog(auctionId: number, auth?: JwtPayload) {
       id: item.id,
       lotNumber: item.lotNumber,
       catalogDescription: item.product.catalogDescription,
-      basePrice: isAuthed ? item.basePrice : null,
+      basePrice: isAuthenticated ? item.basePrice : null,
       commission: item.commission,
       status: item.status,
       auctioned: item.auctioned,
@@ -210,31 +263,286 @@ export async function getAuctionCatalog(auctionId: number, auth?: JwtPayload) {
   };
 }
 
-export async function getStreamingUrl(auctionId: number, auth: JwtPayload) {
-  const client = await prisma.client.findUnique({ where: { id: auth.sub } });
-  if (!client) throw notFound("Cliente");
+// ── GET /auctions/:id/streaming ──────────────────────────────────────────────
 
-  if (!client.admitted) {
-    throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está admitida");
-  }
-
+export async function getStreamingUrl(auctionId: number, clientId: number) {
   const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
   if (!auction) throw notFound("Subasta");
 
-  const clientLevel = categoryLevel(client.category ?? "");
-  const auctionLevel = categoryLevel(auction.category);
+  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  if (!client || !client.admitted) {
+    throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
+  }
 
-  if (clientLevel < auctionLevel) {
+  const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3 horas
+  return {
+    url: auction.streamingUrl ?? `https://stream.auctify.example/auction/${auctionId}`,
+    expiresAt: expiresAt.toISOString(),
+  };
+}
+
+// ── POST /auctions/:id/attendees ─────────────────────────────────────────────
+
+export async function registerAttendee(auctionId: number, clientId: number) {
+  const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+  if (!auction) throw notFound("Subasta");
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      paymentMethods: { where: { status: "verified" }, select: { id: true } },
+    },
+  });
+  if (!client) throw notFound("Cliente");
+
+  if (!client.admitted) {
+    throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
+  }
+  if (client.blocked) {
+    throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
+  }
+  if (!isCategorySufficient(auction.category, client.category)) {
     throw new AppError(
       ErrorCode.CATEGORY_INSUFFICIENT,
       403,
-      "Tu categoría no es suficiente para acceder al streaming de esta subasta"
+      "Tu categoría no es suficiente para esta subasta"
+    );
+  }
+  if (client.paymentMethods.length === 0) {
+    throw new AppError(
+      ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
+      403,
+      "Necesitás al menos un medio de pago verificado"
     );
   }
 
-  if (!auction.streamingUrl) {
-    throw notFound("URL de streaming");
+  const existing = await prisma.attendee.findUnique({
+    where: { auctionId_clientId: { auctionId, clientId } },
+  });
+  if (existing) {
+    throw new AppError(ErrorCode.DUPLICATE_ENTRY, 409, "Ya estás registrado en esta subasta");
   }
 
-  return { url: auction.streamingUrl, expiresAt: null };
+  const maxBidder = await prisma.attendee.findFirst({
+    where: { auctionId },
+    orderBy: { bidderNumber: "desc" },
+    select: { bidderNumber: true },
+  });
+  const bidderNumber = (maxBidder?.bidderNumber ?? 0) + 1;
+
+  return prisma.attendee.create({
+    data: { auctionId, clientId, bidderNumber },
+  });
+}
+
+// ── GET /auctions/:id/attendees ──────────────────────────────────────────────
+
+export async function listAttendees(auctionId: number) {
+  const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+  if (!auction) throw notFound("Subasta");
+
+  return prisma.attendee.findMany({ where: { auctionId }, orderBy: { bidderNumber: "asc" } });
+}
+
+// ── POST /auctions/:id/connect ───────────────────────────────────────────────
+
+export async function connectToAuction(auctionId: number, clientId: number) {
+  const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
+  if (!auction) throw notFound("Subasta");
+
+  if (auction.status !== "open") {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "La subasta no está abierta");
+  }
+
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
+    include: {
+      paymentMethods: { where: { status: "verified" }, select: { id: true } },
+    },
+  });
+  if (!client) throw notFound("Cliente");
+
+  if (!client.admitted) {
+    throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
+  }
+  if (client.blocked) {
+    throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
+  }
+  if (!isCategorySufficient(auction.category, client.category)) {
+    throw new AppError(
+      ErrorCode.CATEGORY_INSUFFICIENT,
+      403,
+      "Tu categoría no es suficiente para esta subasta"
+    );
+  }
+  if (client.paymentMethods.length === 0) {
+    throw new AppError(
+      ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
+      403,
+      "Necesitás al menos un medio de pago verificado"
+    );
+  }
+
+  const activeSession = await prisma.auctionSession.findFirst({
+    where: { clientId, active: true },
+  });
+  if (activeSession) {
+    if (activeSession.auctionId === auctionId) {
+      return activeSession;
+    }
+    throw new AppError(
+      ErrorCode.ALREADY_CONNECTED,
+      409,
+      "Ya estás conectado a otra subasta. Desconectate primero.",
+      { auctionId: activeSession.auctionId }
+    );
+  }
+
+  let attendee = await prisma.attendee.findUnique({
+    where: { auctionId_clientId: { auctionId, clientId } },
+  });
+  if (!attendee) {
+    const maxBidder = await prisma.attendee.findFirst({
+      where: { auctionId },
+      orderBy: { bidderNumber: "desc" },
+      select: { bidderNumber: true },
+    });
+    const bidderNumber = (maxBidder?.bidderNumber ?? 0) + 1;
+    attendee = await prisma.attendee.create({
+      data: { auctionId, clientId, bidderNumber },
+    });
+  }
+
+  return prisma.auctionSession.create({
+    data: { auctionId, clientId, startedAt: new Date(), active: true },
+  });
+}
+
+// ── POST /auctions/:id/disconnect ────────────────────────────────────────────
+
+export async function disconnectFromAuction(auctionId: number, clientId: number) {
+  const session = await prisma.auctionSession.findFirst({
+    where: { auctionId, clientId, active: true },
+  });
+
+  if (!session) throw notFound("Sesión activa");
+
+  return prisma.auctionSession.update({
+    where: { id: session.id },
+    data: { active: false, endedAt: new Date() },
+  });
+}
+
+// ── GET /auctions/:id/live-status ────────────────────────────────────────────
+
+export async function getLiveStatus(auctionId: number, clientId: number) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: {
+      currentItem: {
+        include: {
+          product: { select: { id: true, catalogDescription: true } },
+          bids: {
+            orderBy: { amount: "desc" },
+            take: 1,
+            include: { attendee: { select: { bidderNumber: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  if (!auction) throw notFound("Subasta");
+
+  const session = await prisma.auctionSession.findFirst({
+    where: { auctionId, clientId, active: true },
+  });
+  if (!session) {
+    throw new AppError(ErrorCode.NOT_CONNECTED, 403, "No estás conectado a esta subasta");
+  }
+
+  const connectedCount = await prisma.auctionSession.count({
+    where: { auctionId, active: true },
+  });
+
+  let currentItem = null;
+  if (auction.currentItemId && auction.currentItem) {
+    const item = auction.currentItem;
+
+    const bestBidRow = await prisma.bid.findFirst({
+      where: { itemId: item.id },
+      orderBy: { amount: "desc" },
+      include: { attendee: { select: { bidderNumber: true } } },
+    });
+
+    const lastBidRow = await prisma.bid.findFirst({
+      where: { itemId: item.id },
+      orderBy: { timestamp: "desc" },
+      select: { amount: true },
+    });
+
+    const bestBid = bestBidRow?.amount ?? null;
+    const lastBidAmount = lastBidRow?.amount ?? null;
+    const bidCount = await prisma.bid.count({ where: { itemId: item.id } });
+
+    const { minBidAllowed, maxBidAllowed } = computeRange(
+      item,
+      auction.category,
+      bestBid,
+      lastBidAmount
+    );
+
+    currentItem = {
+      itemId: item.id,
+      productId: item.productId,
+      catalogDescription: item.product.catalogDescription ?? `Lote #${item.id}`,
+      basePrice: item.basePrice,
+      bestBid,
+      bestBidBidderNumber: bestBidRow?.attendee.bidderNumber ?? null,
+      minBidAllowed,
+      maxBidAllowed,
+      bidCount,
+    };
+  }
+
+  let youWereOutbid = false;
+  if (auction.currentItemId && currentItem) {
+    const attendee = await prisma.attendee.findUnique({
+      where: { auctionId_clientId: { auctionId, clientId } },
+    });
+
+    if (attendee) {
+      const clientHasBid = await prisma.bid.findFirst({
+        where: { itemId: auction.currentItemId, attendeeId: attendee.id },
+      });
+      const clientIsWinner = await prisma.bid.findFirst({
+        where: { itemId: auction.currentItemId, attendeeId: attendee.id, winner: true },
+      });
+      youWereOutbid = clientHasBid !== null && clientIsWinner === null;
+    }
+  }
+
+  const lastEventRow = await prisma.auctionEvent.findFirst({
+    where: { auctionId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const lastEvent = lastEventRow
+    ? {
+        type: lastEventRow.type,
+        timestamp: lastEventRow.createdAt.toISOString(),
+        data: JSON.parse(lastEventRow.data) as Record<string, unknown>,
+      }
+    : null;
+
+  return {
+    version: auction.version,
+    auctionId: auction.id,
+    auctionStatus: auction.status,
+    connectedCount,
+    currentItem,
+    youWereOutbid,
+    lastEvent,
+    updatedAt: new Date().toISOString(),
+  };
 }

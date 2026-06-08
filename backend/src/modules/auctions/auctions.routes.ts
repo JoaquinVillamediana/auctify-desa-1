@@ -1,70 +1,120 @@
+/**
+ * Rutas del módulo auctions.
+ * Base path: /v1/auctions (montado en routes/index.ts)
+ *
+ * GET  /auctions                      — listar subastas (público)
+ * GET  /auctions/:id                  — detalle (público)
+ * POST /auctions                      — crear subasta (ADMIN)
+ * PATCH /auctions/:id                 — actualizar subasta (ADMIN)
+ * GET  /auctions/:id/catalog          — catálogo con ítems (optionalAuth para precios)
+ * GET  /auctions/:id/streaming        — URL de streaming (requireAuth)
+ * POST /auctions/:id/attendees        — registrarse como asistente (requireAuth)
+ * GET  /auctions/:id/attendees        — listar asistentes (ADMIN)
+ * POST /auctions/:id/connect          — conectarse a la sesión en vivo (requireAuth)
+ * POST /auctions/:id/disconnect       — desconectarse (requireAuth)
+ * GET  /auctions/:id/live-status      — estado en tiempo real (requireAuth)
+ *
+ * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
+ */
+
 import { Router } from "express";
-import { z } from "zod";
 import { validate } from "../../middleware/validate";
 import { requireAuth, optionalAuth, requireRole } from "../../middleware/auth";
-import * as controller from "./auctions.controller";
+import {
+  listAuctionsSchema,
+  auctionIdSchema,
+  createAuctionSchema,
+  updateAuctionSchema,
+  registerAttendeeSchema,
+} from "./auctions.schema";
+import * as ctrl from "./auctions.controller";
 
 const router = Router();
 
-const STATUSES = ["scheduled", "open", "closed"] as const;
-const CATEGORIES = ["common", "special", "silver", "gold", "platinum"] as const;
-const CURRENCIES = ["ARS", "USD"] as const;
+// ── Listado y detalle (públicos) ──────────────────────────────────────────────
 
-const createSchema = z.object({
-  body: z.object({
-    startsAt: z.string().min(1),
-    status: z.enum(STATUSES).optional(),
-    currency: z.enum(CURRENCIES),
-    category: z.enum(CATEGORIES),
-    auctioneerId: z.number().int().optional(),
-    location: z.string().optional(),
-    attendeeCapacity: z.number().int().optional(),
-    hasWarehouse: z.boolean().optional(),
-    ownSecurity: z.boolean().optional(),
-    isCollection: z.boolean().optional(),
-    collectionName: z.string().optional(),
-    streamingUrl: z.string().optional(),
-  }),
-});
+router.get("/", validate(listAuctionsSchema), ctrl.listAuctions);
 
-const updateSchema = z.object({
-  params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
-  body: z.object({
-    startsAt: z.string().optional(),
-    status: z.enum(STATUSES).optional(),
-    currency: z.enum(CURRENCIES).optional(),
-    category: z.enum(CATEGORIES).optional(),
-    auctioneerId: z.number().int().nullable().optional(),
-    location: z.string().nullable().optional(),
-    attendeeCapacity: z.number().int().nullable().optional(),
-    hasWarehouse: z.boolean().optional(),
-    ownSecurity: z.boolean().optional(),
-    isCollection: z.boolean().optional(),
-    collectionName: z.string().nullable().optional(),
-    streamingUrl: z.string().nullable().optional(),
-  }),
-});
+router.get("/:id", validate(auctionIdSchema), ctrl.getAuction);
 
-const idParam = z.object({
-  params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
-});
+// ── Admin CRUD ────────────────────────────────────────────────────────────────
 
-/** GET /auctions — lista con filtros opcionales */
-router.get("/", optionalAuth, controller.getAuctions);
+router.post("/", requireAuth, requireRole("ADMIN"), validate(createAuctionSchema), ctrl.createAuction);
 
-/** GET /auctions/:id — detalle de subasta */
-router.get("/:id", optionalAuth, validate(idParam), controller.getAuctionById);
+router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateAuctionSchema), ctrl.updateAuction);
 
-/** POST /auctions — crear subasta (solo ADMIN) */
-router.post("/", requireAuth, requireRole("ADMIN"), validate(createSchema), controller.createAuction);
+// ── Catálogo de ítems ─────────────────────────────────────────────────────────
 
-/** PATCH /auctions/:id — actualizar subasta (solo ADMIN) */
-router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateSchema), controller.updateAuction);
+router.get("/:id/catalog", optionalAuth, validate(auctionIdSchema), ctrl.getAuctionCatalog);
 
-/** GET /auctions/:id/catalog — catálogo con ítems */
-router.get("/:id/catalog", optionalAuth, validate(idParam), controller.getAuctionCatalog);
+// ── Streaming (clientes autenticados) ────────────────────────────────────────
 
-/** GET /auctions/:id/streaming — URL de streaming (requiere admitido + categoría) */
-router.get("/:id/streaming", requireAuth, validate(idParam), controller.getStreamingUrl);
+router.get(
+  "/:id/streaming",
+  requireAuth,
+  validate(auctionIdSchema),
+  ctrl.getStreaming
+);
+
+// ── Asistentes ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /auctions/:id/attendees
+ * Self-registro: identidad del token; admin puede pasar clientId en el body.
+ */
+router.post(
+  "/:id/attendees",
+  requireAuth,
+  validate(registerAttendeeSchema),
+  ctrl.registerAttendee
+);
+
+/**
+ * GET /auctions/:id/attendees
+ * Solo ADMIN.
+ */
+router.get(
+  "/:id/attendees",
+  requireAuth,
+  requireRole("ADMIN"),
+  validate(auctionIdSchema),
+  ctrl.listAttendees
+);
+
+// ── Sesión en vivo ────────────────────────────────────────────────────────────
+
+/**
+ * POST /auctions/:id/connect
+ * Crea AuctionSession activa; auto-crea Attendee si no existe.
+ * Invariante: máximo 1 sesión activa por cliente en todo el sistema.
+ */
+router.post(
+  "/:id/connect",
+  requireAuth,
+  validate(auctionIdSchema),
+  ctrl.connect
+);
+
+/**
+ * POST /auctions/:id/disconnect
+ * Cierra la sesión activa del cliente (active=false, endedAt=now).
+ */
+router.post(
+  "/:id/disconnect",
+  requireAuth,
+  validate(auctionIdSchema),
+  ctrl.disconnect
+);
+
+/**
+ * GET /auctions/:id/live-status
+ * Retorna AuctionLiveStatus. 403 NOT_CONNECTED si no hay sesión activa.
+ */
+router.get(
+  "/:id/live-status",
+  requireAuth,
+  validate(auctionIdSchema),
+  ctrl.getLiveStatus
+);
 
 export default router;

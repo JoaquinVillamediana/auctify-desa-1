@@ -1,48 +1,65 @@
+/**
+ * Rutas del módulo items/bids.
+ * Base path: /v1/items (montado en routes/index.ts)
+ *
+ * GET  /items              — listar ítems (optionalAuth para basePrice)
+ * GET  /items/:id          — detalle (optionalAuth)
+ * POST /items              — crear ítem en catálogo (ADMIN)
+ * PATCH /items/:id         — actualizar ítem (ADMIN)
+ * GET  /items/:id/bids     — historial de pujas (requireAuth)
+ * POST /items/:id/bids     — crear puja (requireAuth; header Idempotency-Key)
+ *
+ * Ver docs/features/F03-auctions.md y docs/features/F05-bidding.md
+ */
+
 import { Router } from "express";
-import { z } from "zod";
 import { validate } from "../../middleware/validate";
 import { requireAuth, optionalAuth, requireRole } from "../../middleware/auth";
-import * as controller from "./items.controller";
+import {
+  listItemsSchema,
+  itemIdSchema,
+  createItemSchema,
+  updateItemSchema,
+  createBidSchema,
+} from "./items.schema";
+import * as ctrl from "./items.controller";
 
 const router = Router();
 
-const createSchema = z.object({
-  body: z.object({
-    catalogId: z.number().int(),
-    productId: z.number().int(),
-    lotNumber: z.number().int(),
-    basePrice: z.number().positive(),
-    commission: z.number().min(0).max(1),
-    status: z.string().optional(),
-  }),
-});
+// ── Ítems (optionalAuth: basePrice visible solo a autenticados) ───────────────
 
-const updateSchema = z.object({
-  params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
-  body: z.object({
-    lotNumber: z.number().int().optional(),
-    basePrice: z.number().positive().optional(),
-    commission: z.number().min(0).max(1).optional(),
-    status: z.string().optional(),
-    auctioned: z.boolean().optional(),
-    insurancePolicy: z.string().nullable().optional(),
-  }),
-});
+router.get("/", optionalAuth, validate(listItemsSchema), ctrl.listItems);
 
-const idParam = z.object({
-  params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
-});
+router.get("/:id", optionalAuth, validate(itemIdSchema), ctrl.getItem);
 
-/** GET /items — lista de ítems con filtros opcionales */
-router.get("/", optionalAuth, controller.getItems);
+// ── Admin CRUD ────────────────────────────────────────────────────────────────
 
-/** GET /items/:id — detalle de ítem con producto y mejor oferta */
-router.get("/:id", optionalAuth, validate(idParam), controller.getItemById);
+router.post("/", requireAuth, requireRole("ADMIN"), validate(createItemSchema), ctrl.createItem);
 
-/** POST /items — crear ítem en catálogo (solo ADMIN) */
-router.post("/", requireAuth, requireRole("ADMIN"), validate(createSchema), controller.createItem);
+router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateItemSchema), ctrl.updateItem);
 
-/** PATCH /items/:id — actualizar ítem (solo ADMIN) */
-router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateSchema), controller.updateItem);
+// ── Historial de pujas ────────────────────────────────────────────────────────
+
+router.get(
+  "/:id/bids",
+  requireAuth,
+  validate(itemIdSchema),
+  ctrl.listBids
+);
+
+// ── Crear puja ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /items/:id/bids
+ * Requiere header Idempotency-Key.
+ * Body: { amount, paymentMethodId, knownBestBid? }
+ * La identidad del postor (attendeeId) se resuelve del token.
+ */
+router.post(
+  "/:id/bids",
+  requireAuth,
+  validate(createBidSchema),
+  ctrl.createBid
+);
 
 export default router;

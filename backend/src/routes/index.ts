@@ -12,8 +12,10 @@ import { Router } from "express";
 import healthRouter from "../modules/health/health.routes";
 import authRouter from "../modules/auth/auth.routes";
 import clientsRouter from "../modules/clients/clients.routes";
+import paymentMethodsRouter from "../modules/paymentMethods/paymentMethods.routes";
 import auctionsRouter from "../modules/auctions/auctions.routes";
 import itemsRouter from "../modules/items/items.routes";
+import penaltiesRouter from "../modules/penalties/penalties.routes";
 import saleRecordsRouter from "../modules/sale-records/sale-records.routes";
 import insuranceRouter from "../modules/insurance/insurance.routes";
 import productsRouter from "../modules/products/products.routes";
@@ -30,14 +32,14 @@ router.use("/auth", authRouter);
 // ── Clients (admin) ───────────────────────────────────────────────────────────
 router.use("/clients", clientsRouter);
 
-// ── Auctions (F03) ────────────────────────────────────────────────────────────
-// GET  /auctions, /auctions/:id, /auctions/:id/catalog, /auctions/:id/streaming
-// POST /auctions (admin), PATCH /auctions/:id (admin)
+// ── Payment Methods (F02) ─────────────────────────────────────────────────────
+// Paths completos (/me/payment-methods, /payment-methods/:id) → montado en la raíz /v1.
+router.use(paymentMethodsRouter);
+
+// ── Auctions · Catálogo · Sesión · Live (F03/F04) ────────────────────────────
 router.use("/auctions", auctionsRouter);
 
-// ── Items (F03) ───────────────────────────────────────────────────────────────
-// GET  /items, /items/:id
-// POST /items (admin), PATCH /items/:id (admin)
+// ── Items / Bids (F03/F05) ────────────────────────────────────────────────────
 router.use("/items", itemsRouter);
 
 // ── Sale Records (F07) ────────────────────────────────────────────────────────
@@ -61,17 +63,13 @@ router.use("/products", productsRouter);
 // POST /owners/:id/payout-accounts
 router.use("/owners", ownersRouter);
 
-// ── Payment Methods (F02) ─────────────────────────────────────────────────────
-// TODO: implementar módulo paymentMethods — ver docs/features/F02-payment-methods.md
-// router.use("/payment-methods", paymentMethodsRouter);
+// ── Penalties (F10) ───────────────────────────────────────────────────────────
+// Paths completos (/penalties, /me/penalties, /clients/:id/penalties, /penalties/:id/pay) → raíz /v1.
+router.use(penaltiesRouter);
 
 // ── Inclusion Requests (F06) ──────────────────────────────────────────────────
 // TODO: implementar módulo inclusionRequests — ver docs/features/F06-inclusion-requests.md
 // router.use("/inclusion-requests", inclusionRequestsRouter);
-
-// ── Penalties ─────────────────────────────────────────────────────────────────
-// TODO: implementar módulo penalties — ver docs/features/F10-penalties.md
-// router.use("/penalties", penaltiesRouter);
 
 // ── Notifications (F09) ───────────────────────────────────────────────────────
 // TODO: implementar módulo notifications — ver docs/features/F09-notifications.md

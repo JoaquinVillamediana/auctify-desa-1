@@ -1,33 +1,57 @@
+/**
+ * Controlador del módulo auctions.
+ * Traduce requests HTTP → service → response.
+ * Sin lógica de negocio aquí — solo orquestación.
+ *
+ * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
+ */
+
 import { Request, Response, NextFunction } from "express";
 import * as auctionsService from "./auctions.service";
 
-export async function getAuctions(req: Request, res: Response, next: NextFunction) {
+// ── GET /auctions ─────────────────────────────────────────────────────────────
+
+export async function listAuctions(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const filters = {
+    const auctions = await auctionsService.listAuctions({
       status: req.query.status as string | undefined,
       category: req.query.category as string | undefined,
       currency: req.query.currency as string | undefined,
       date: req.query.date as string | undefined,
-      accessibleForClient: req.query.accessibleForClient === "true",
-    };
-    const result = await auctionsService.getAuctions(filters, req.auth);
-    res.json(result);
+    });
+    res.status(200).json(auctions);
   } catch (err) {
     next(err);
   }
 }
 
-export async function getAuctionById(req: Request, res: Response, next: NextFunction) {
+// ── GET /auctions/:id ─────────────────────────────────────────────────────────
+
+export async function getAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const id = parseInt(req.params.id, 10);
-    const result = await auctionsService.getAuctionById(id, req.auth);
-    res.json(result);
+    const auctionId = req.params.id as unknown as number;
+    const detail = await auctionsService.getAuctionDetail(auctionId);
+    res.status(200).json(detail);
   } catch (err) {
     next(err);
   }
 }
 
-export async function createAuction(req: Request, res: Response, next: NextFunction) {
+// ── POST /auctions (admin) ────────────────────────────────────────────────────
+
+export async function createAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const result = await auctionsService.createAuction(req.body);
     res.status(201).json(result);
@@ -36,31 +60,141 @@ export async function createAuction(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function updateAuction(req: Request, res: Response, next: NextFunction) {
+// ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
+
+export async function updateAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = req.params.id as unknown as number;
     const result = await auctionsService.updateAuction(id, req.body);
-    res.json(result);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }
 }
 
-export async function getAuctionCatalog(req: Request, res: Response, next: NextFunction) {
+// ── GET /auctions/:id/catalog ─────────────────────────────────────────────────
+
+export async function getAuctionCatalog(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const id = parseInt(req.params.id, 10);
-    const result = await auctionsService.getAuctionCatalog(id, req.auth);
-    res.json(result);
+    const id = req.params.id as unknown as number;
+    const result = await auctionsService.getAuctionCatalog(id, !!req.auth);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }
 }
 
-export async function getStreamingUrl(req: Request, res: Response, next: NextFunction) {
+// ── GET /auctions/:id/streaming ───────────────────────────────────────────────
+
+export async function getStreaming(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const id = parseInt(req.params.id, 10);
-    const result = await auctionsService.getStreamingUrl(id, req.auth!);
-    res.json(result);
+    const auctionId = req.params.id as unknown as number;
+    const clientId = req.auth!.sub;
+    const result = await auctionsService.getStreamingUrl(auctionId, clientId);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/attendees ──────────────────────────────────────────────
+
+/**
+ * Self-registro: el clientId sale del token (req.auth.sub).
+ * Admin puede pasar clientId en el body para registrar a otro.
+ */
+export async function registerAttendee(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const isAdmin = req.auth!.roles.includes("ADMIN");
+    const clientId =
+      isAdmin && req.body.clientId ? req.body.clientId : req.auth!.sub;
+
+    const attendee = await auctionsService.registerAttendee(auctionId, clientId);
+    res.status(201).json(attendee);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /auctions/:id/attendees ───────────────────────────────────────────────
+
+export async function listAttendees(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const attendees = await auctionsService.listAttendees(auctionId);
+    res.status(200).json(attendees);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/connect ────────────────────────────────────────────────
+
+export async function connect(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const clientId = req.auth!.sub;
+    const session = await auctionsService.connectToAuction(auctionId, clientId);
+    res.status(200).json(session);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /auctions/:id/disconnect ─────────────────────────────────────────────
+
+export async function disconnect(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const clientId = req.auth!.sub;
+    await auctionsService.disconnectFromAuction(auctionId, clientId);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /auctions/:id/live-status ─────────────────────────────────────────────
+
+export async function getLiveStatus(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const auctionId = req.params.id as unknown as number;
+    const clientId = req.auth!.sub;
+    const status = await auctionsService.getLiveStatus(auctionId, clientId);
+    res.status(200).json(status);
   } catch (err) {
     next(err);
   }
