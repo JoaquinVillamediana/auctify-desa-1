@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
+import { storage } from '@/lib/storage';
 import { get, post, postMultipart, setTokenGetter } from '@/api/client';
 import type { Client } from '@/api/types';
 
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     async function hydrate() {
       try {
-        const storedToken = await SecureStore.getItemAsync(TOKEN_KEY);
+        const storedToken = await storage.getItem(TOKEN_KEY);
         if (storedToken) {
           setToken(storedToken);
           setTokenGetter(() => storedToken);
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         // Token invalido o expirado — limpiar sesion
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
+        await storage.deleteItem(TOKEN_KEY);
         setToken(null);
         setUser(null);
       } finally {
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ─── Persistir token ───
 
   async function persistToken(newToken: string) {
-    await SecureStore.setItemAsync(TOKEN_KEY, newToken);
+    await storage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
     setTokenGetter(() => newToken);
   }
