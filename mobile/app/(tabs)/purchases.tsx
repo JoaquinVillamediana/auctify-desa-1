@@ -5,12 +5,9 @@ import { get } from '@/api/client';
 import { Loading } from '@/components/Loading';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 import type { SaleRecord } from '@/api/types';
 
-/**
- * Mis compras — lista de SaleRecord donde el usuario es el comprador (F07).
- */
 export default function PurchasesScreen() {
   const router = useRouter();
   const [purchases, setPurchases] = useState<SaleRecord[]>([]);
@@ -40,12 +37,20 @@ export default function PurchasesScreen() {
   }, []);
 
   if (loading) return <Loading />;
-  if (error) return <ErrorView message={error} onRetry={() => { setLoading(true); fetchPurchases().finally(() => setLoading(false)); }} />;
+  if (error) {
+    return (
+      <ErrorView
+        message={error}
+        onRetry={() => { setLoading(true); fetchPurchases().finally(() => setLoading(false)); }}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Mis compras</Text>
+        <Text style={styles.headerSub}>{purchases.length} registros</Text>
       </View>
 
       <FlatList
@@ -65,18 +70,33 @@ export default function PurchasesScreen() {
             onPress={() => router.push(`/purchase/${item.id}`)}
             activeOpacity={0.75}
           >
-            <View style={styles.cardHeader}>
-              <Text style={styles.amount}>${item.amount.toLocaleString('es-AR')}</Text>
-              <View style={[styles.statusBadge, paymentStatusStyle(item.paymentStatus)]}>
-                <Text style={styles.statusText}>{paymentStatusLabel(item.paymentStatus)}</Text>
+            {/* Left: color stripe by status */}
+            <View style={[styles.stripe, paymentStripeStyle(item.paymentStatus)]} />
+
+            <View style={styles.cardBody}>
+              {/* Top row: amount + status pill */}
+              <View style={styles.cardTop}>
+                <Text style={styles.amount}>${item.amount.toLocaleString('es-AR')}</Text>
+                <PaymentPill status={item.paymentStatus} />
+              </View>
+
+              {/* Description */}
+              <Text style={styles.description} numberOfLines={1}>
+                {item.product?.catalogDescription ?? `Ítem de subasta #${item.auctionId}`}
+              </Text>
+
+              {/* Bottom: date + commission */}
+              <View style={styles.cardBottom}>
+                <Text style={styles.date}>
+                  {new Date(item.createdAt).toLocaleDateString('es-AR', { dateStyle: 'medium' })}
+                </Text>
+                <Text style={styles.commission}>
+                  Comisión: ${item.commission.toLocaleString('es-AR')}
+                </Text>
               </View>
             </View>
-            <Text style={styles.description} numberOfLines={1}>
-              {item.product?.catalogDescription ?? `Ítem de subasta #${item.auctionId}`}
-            </Text>
-            <Text style={styles.date}>
-              {new Date(item.createdAt).toLocaleDateString('es-AR', { dateStyle: 'medium' })}
-            </Text>
+
+            <Text style={styles.arrow}>›</Text>
           </TouchableOpacity>
         )}
       />
@@ -84,42 +104,94 @@ export default function PurchasesScreen() {
   );
 }
 
-function paymentStatusLabel(status: string): string {
-  if (status === 'paid') return 'Pagado';
-  if (status === 'failed') return 'Falló';
-  return 'Pendiente';
+function PaymentPill({ status }: { status: string }) {
+  if (status === 'paid') {
+    return (
+      <View style={styles.pillPaid}>
+        <Text style={styles.pillPaidText}>Pagado</Text>
+      </View>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <View style={styles.pillFailed}>
+        <Text style={styles.pillFailedText}>Falló</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.pillPending}>
+      <Text style={styles.pillPendingText}>Pendiente</Text>
+    </View>
+  );
 }
 
-function paymentStatusStyle(status: string) {
-  if (status === 'paid') return { backgroundColor: colors.feedback.successBackground };
-  if (status === 'failed') return { backgroundColor: colors.feedback.errorBackground };
-  return { backgroundColor: colors.feedback.warningBackground };
+function paymentStripeStyle(status: string) {
+  if (status === 'paid') return { backgroundColor: colors.feedback.success };
+  if (status === 'failed') return { backgroundColor: colors.feedback.error };
+  return { backgroundColor: colors.feedback.warning };
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
+
   header: {
     paddingTop: 60,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
+    backgroundColor: colors.background.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },
   headerTitle: { ...typography.heading2, color: colors.text.primary },
-  list: { padding: spacing.md },
+  headerSub: { ...typography.caption, color: colors.text.tertiary, marginTop: 2 },
+
+  list: { padding: spacing.md, paddingBottom: 40 },
   emptyContainer: { flex: 1, justifyContent: 'center' },
+
   card: {
     backgroundColor: colors.background.card,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border.default,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    alignItems: 'center',
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  stripe: { width: 4, alignSelf: 'stretch' },
+  cardBody: { flex: 1, padding: spacing.sm },
+  arrow: { ...typography.heading3, color: colors.text.tertiary, paddingRight: spacing.sm },
+
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   amount: { ...typography.heading3, color: colors.brand.primary, fontWeight: '800' },
-  statusBadge: { paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: 6 },
-  statusText: { ...typography.caption, fontWeight: '600', color: colors.text.primary },
-  description: { ...typography.body, color: colors.text.secondary, marginBottom: 4 },
+
+  pillPaid: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.feedback.successBackground,
+  },
+  pillPaidText: { ...typography.caption, color: colors.feedback.success, fontWeight: '700' },
+
+  pillFailed: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.feedback.errorBackground,
+  },
+  pillFailedText: { ...typography.caption, color: colors.feedback.error, fontWeight: '700' },
+
+  pillPending: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.feedback.warningBackground,
+  },
+  pillPendingText: { ...typography.caption, color: colors.feedback.warning, fontWeight: '700' },
+
+  description: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: 4 },
+  cardBottom: { flexDirection: 'row', justifyContent: 'space-between' },
   date: { ...typography.caption, color: colors.text.tertiary },
+  commission: { ...typography.caption, color: colors.text.tertiary },
 });

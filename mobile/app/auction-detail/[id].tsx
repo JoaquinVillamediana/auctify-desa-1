@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking, Alert, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 import type { AuctionDetail } from '@/api/types';
 
-/**
- * Detalle de subasta (F03).
- * Muestra info de la subasta, botones para ver catálogo, streaming y conectarse.
- */
 export default function AuctionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -23,12 +19,16 @@ export default function AuctionDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loadingStreaming, setLoadingStreaming] = useState(false);
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
+    setError(null);
     get<AuctionDetail>(`/auctions/${id}`)
       .then(setAuction)
       .catch(() => setError('No se pudo cargar la subasta.'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }
+
+  useEffect(() => { load(); }, [id]);
 
   async function openStreaming() {
     setLoadingStreaming(true);
@@ -50,11 +50,7 @@ export default function AuctionDetailScreen() {
   }
 
   if (loading) return <Loading />;
-  if (error || !auction) return <ErrorView message={error ?? 'Error al cargar'} onRetry={() => {
-    setLoading(true);
-    setError(null);
-    get<AuctionDetail>(`/auctions/${id}`).then(setAuction).catch(() => setError('No se pudo cargar la subasta.')).finally(() => setLoading(false));
-  }} />;
+  if (error || !auction) return <ErrorView message={error ?? 'Error al cargar'} onRetry={load} />;
 
   const isOpen = auction.status === 'open';
   const isScheduled = auction.status === 'scheduled';
@@ -62,34 +58,54 @@ export default function AuctionDetailScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Botón volver */}
-      <Button title="← Volver" variant="ghost" onPress={() => router.back()} style={styles.backButton} />
-
-      {/* Badge de estado */}
-      <View style={[styles.statusBadge, isOpen ? styles.badgeOpen : isScheduled ? styles.badgeScheduled : styles.badgeClosed]}>
-        <Text style={styles.statusText}>
-          {isOpen ? '🔴 En curso' : isScheduled ? '🕐 Próxima' : '✅ Cerrada'}
-        </Text>
+      {/* Topbar */}
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backText}>‹ Volver</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Info principal */}
-      <View style={styles.section}>
-        <Text style={styles.categoryLabel}>{auction.category.toUpperCase()}</Text>
+      {/* Pills row */}
+      <View style={styles.pillsRow}>
+        {isOpen ? (
+          <View style={styles.pillLive}>
+            <Text style={styles.pillLiveText}>● En vivo</Text>
+          </View>
+        ) : isScheduled ? (
+          <View style={styles.pillInfo}>
+            <Text style={styles.pillInfoText}>Próxima</Text>
+          </View>
+        ) : (
+          <View style={styles.pillOutline}>
+            <Text style={styles.pillOutlineText}>Cerrada</Text>
+          </View>
+        )}
+        <View style={styles.pillOutline}>
+          <Text style={styles.pillOutlineText}>{auction.currency}</Text>
+        </View>
+        <View style={styles.pillHighlight}>
+          <Text style={styles.pillHighlightText}>Cat. {auction.category.toUpperCase()}</Text>
+        </View>
+      </View>
+
+      {/* Main info */}
+      <View style={styles.mainInfo}>
         <Text style={styles.location}>{auction.location ?? 'Ubicación a confirmar'}</Text>
         <Text style={styles.date}>
-          {new Date(auction.startsAt).toLocaleString('es-AR', {
-            dateStyle: 'full',
-            timeStyle: 'short',
-          })}
+          {new Date(auction.startsAt).toLocaleString('es-AR', { dateStyle: 'full', timeStyle: 'short' })}
         </Text>
+        {auction.itemCount !== undefined && (
+          <Text style={styles.meta}>{auction.itemCount} piezas · {auction.attendeeCount ?? 0} asistentes</Text>
+        )}
       </View>
 
-      {/* Detalles */}
+      {/* Details card */}
       <View style={styles.card}>
+        <Text style={styles.cardLabel}>Detalles</Text>
         <DetailRow label="Moneda" value={auction.currency} />
-        <DetailRow label="Ítems" value={String(auction.itemCount)} />
-        <DetailRow label="Asistentes" value={String(auction.attendeeCount)} />
-        {auction.attendeeCapacity && (
+        <DetailRow label="Ítems" value={String(auction.itemCount ?? '—')} />
+        <DetailRow label="Asistentes" value={String(auction.attendeeCount ?? '—')} />
+        {auction.attendeeCapacity != null && (
           <DetailRow label="Capacidad" value={String(auction.attendeeCapacity)} />
         )}
         {auction.isCollection && auction.collectionName && (
@@ -100,40 +116,37 @@ export default function AuctionDetailScreen() {
         )}
       </View>
 
-      {/* Si está programada, mostrar fecha de inicio */}
+      {/* Scheduled notice */}
       {isScheduled && (
-        <View style={styles.scheduledBanner}>
-          <Text style={styles.scheduledText}>
-            Esta subasta comienza el {new Date(auction.startsAt).toLocaleDateString('es-AR', { dateStyle: 'long' })}
+        <View style={styles.noticeBanner}>
+          <Text style={styles.noticeText}>
+            Esta subasta comienza el{' '}
+            {new Date(auction.startsAt).toLocaleDateString('es-AR', { dateStyle: 'long' })}
           </Text>
         </View>
       )}
 
-      {/* Acciones */}
+      {/* Actions */}
       <View style={styles.actions}>
         {auction.catalogId && (
           <Button
             title="Ver catálogo"
             onPress={() => router.push(`/auction-catalog/${id}`)}
-            style={styles.actionButton}
           />
         )}
-
         {canSeeStreaming && (
           <Button
             title="Ver streaming"
             variant="outline"
             onPress={openStreaming}
             loading={loadingStreaming}
-            style={styles.actionButton}
           />
         )}
-
         {isOpen && (
           <Button
             title="Conectarme en vivo"
+            variant="outline"
             onPress={() => router.push(`/auction/${id}`)}
-            style={styles.actionButton}
           />
         )}
       </View>
@@ -152,47 +165,90 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { padding: spacing.md, paddingTop: 60 },
-  backButton: { alignSelf: 'flex-start', marginBottom: spacing.md },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: spacing.md,
+  content: { paddingBottom: 40 },
+
+  topbar: {
+    paddingTop: 56,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
   },
-  badgeOpen: { backgroundColor: colors.feedback.successBackground },
-  badgeScheduled: { backgroundColor: colors.feedback.infoBackground },
-  badgeClosed: { backgroundColor: colors.background.secondary },
-  statusText: { ...typography.label, fontWeight: '700', color: colors.text.primary },
-  section: { marginBottom: spacing.md },
-  categoryLabel: { ...typography.label, color: colors.brand.accent, fontWeight: '700', marginBottom: 4 },
-  location: { ...typography.heading2, color: colors.text.primary, marginBottom: 4 },
-  date: { ...typography.body, color: colors.text.secondary },
+  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600' },
+
+  pillsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    flexWrap: 'wrap',
+  },
+  pillLive: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.feedback.live,
+  },
+  pillLiveText: { fontSize: 12, color: '#fff', fontWeight: '700' },
+  pillInfo: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.feedback.infoBackground,
+    borderWidth: 1,
+    borderColor: colors.feedback.info,
+  },
+  pillInfoText: { ...typography.caption, color: colors.feedback.info, fontWeight: '700' },
+  pillOutline: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border.strong,
+  },
+  pillOutlineText: { ...typography.caption, color: colors.text.secondary },
+  pillHighlight: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand.primaryLight,
+  },
+  pillHighlightText: { ...typography.caption, color: colors.brand.primary, fontWeight: '700' },
+
+  mainInfo: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.md },
+  location: { ...typography.heading3, color: colors.text.primary, marginBottom: 4 },
+  date: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: 4 },
+  meta: { ...typography.caption, color: colors.text.tertiary },
+
   card: {
     backgroundColor: colors.background.card,
-    borderRadius: 12,
+    borderRadius: radius.sm,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border.default,
+    marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
+  cardLabel: { ...typography.overline, color: colors.text.tertiary, marginBottom: spacing.sm },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },
   detailLabel: { ...typography.bodySmall, color: colors.text.secondary },
   detailValue: { ...typography.bodySmall, color: colors.text.primary, fontWeight: '600' },
-  scheduledBanner: {
+
+  noticeBanner: {
     backgroundColor: colors.feedback.infoBackground,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     padding: spacing.md,
+    marginHorizontal: spacing.md,
     marginBottom: spacing.md,
   },
-  scheduledText: { ...typography.body, color: colors.feedback.info },
-  actions: { gap: spacing.sm },
-  actionButton: {},
+  noticeText: { ...typography.bodySmall, color: colors.feedback.info },
+
+  actions: { paddingHorizontal: spacing.md, gap: spacing.sm },
 });

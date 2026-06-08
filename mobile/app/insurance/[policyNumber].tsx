@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { get, post } from '@/api/client';
 import { Button } from '@/components/Button';
 import { Loading } from '@/components/Loading';
 import { ErrorView } from '@/components/ErrorView';
-import { colors, typography, spacing } from '@/theme';
+import { colors, typography, spacing, radius } from '@/theme';
 import type { Insurance } from '@/api/types';
 
-/**
- * Detalle de póliza de seguro y aumento de cobertura (F11).
- */
 export default function InsuranceScreen() {
   const { policyNumber } = useLocalSearchParams<{ policyNumber: string }>();
   const router = useRouter();
@@ -19,10 +16,10 @@ export default function InsuranceScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Formulario de aumento
+  const [showCoverageForm, setShowCoverageForm] = useState(false);
   const [newAmount, setNewAmount] = useState('');
-  const [increasing, setIncreasing] = useState(false);
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [increasing, setIncreasing] = useState(false);
 
   function load() {
     setLoading(true);
@@ -37,12 +34,10 @@ export default function InsuranceScreen() {
 
   async function increaseCoverage() {
     const amount = parseFloat(newAmount);
-
     if (isNaN(amount) || amount <= 0) {
       setAmountError('Ingresá un monto válido.');
       return;
     }
-
     if (insurance && amount <= insurance.amount) {
       setAmountError(`Debe ser mayor al monto actual ($${insurance.amount.toLocaleString('es-AR')}).`);
       return;
@@ -50,7 +45,6 @@ export default function InsuranceScreen() {
 
     setAmountError(null);
     setIncreasing(true);
-
     try {
       const result = await post<{
         policyNumber: string;
@@ -62,10 +56,11 @@ export default function InsuranceScreen() {
 
       Alert.alert(
         'Cobertura actualizada',
-        `Nueva cobertura: $${result.newAmount.toLocaleString('es-AR')}. Premio adicional: $${result.premiumDelta.toFixed(2)}.`
+        `Nueva cobertura: $${result.newAmount.toLocaleString('es-AR')}.\nPremio adicional: $${result.premiumDelta.toFixed(2)}.`
       );
       setInsurance((prev) => prev ? { ...prev, amount: result.newAmount } : null);
       setNewAmount('');
+      setShowCoverageForm(false);
     } catch (err: any) {
       Alert.alert('Error', err.message ?? 'No se pudo aumentar la cobertura.');
     } finally {
@@ -82,87 +77,158 @@ export default function InsuranceScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Button title="← Volver" variant="ghost" onPress={() => router.back()} style={styles.backButton} />
-      <Text style={styles.title}>Seguro del bien</Text>
+      {/* Topbar */}
+      <View style={styles.topbar}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backText}>‹ Volver</Text>
+        </TouchableOpacity>
+        <Text style={styles.topbarTitle}>Custodia de mi pieza</Text>
+      </View>
 
-      {/* Info de la póliza */}
+      {/* Map / location placeholder */}
+      <View style={styles.mapPlaceholder}>
+        <Text style={styles.mapText}>mapa depósito</Text>
+      </View>
+
+      {/* Location box */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Póliza</Text>
-        <DetailRow label="N° de póliza" value={insurance.policyNumber} />
-        <DetailRow label="Compañía" value={insurance.company} />
-        <DetailRow label="Cobertura actual" value={`$${insurance.amount.toLocaleString('es-AR')}`} />
+        <Text style={styles.cardLabel}>Ubicación</Text>
+        <Text style={styles.locationName}>Auctify Dep.</Text>
+      </View>
+
+      {/* Policy box */}
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>Póliza de seguro</Text>
+
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>N°</Text>
+          <Text style={styles.rowValue}>{insurance.policyNumber}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Asegurado por</Text>
+          <Text style={styles.rowValue}>${insurance.amount.toLocaleString('es-AR')}</Text>
+        </View>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Compañía</Text>
+          <Text style={styles.rowValue}>{insurance.company}</Text>
+        </View>
+
         {insurance.combinedPolicy && (
           <View style={styles.combinedBadge}>
-            <Text style={styles.combinedText}>Póliza combinada — cubre varios bienes del mismo dueño</Text>
+            <Text style={styles.combinedText}>Póliza combinada · cubre varios bienes del mismo dueño</Text>
           </View>
         )}
       </View>
 
-      {/* Aumentar cobertura */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Aumentar cobertura</Text>
-        <Text style={styles.hint}>Monto actual: ${insurance.amount.toLocaleString('es-AR')}</Text>
+      {/* Ampliar cobertura */}
+      {!showCoverageForm ? (
+        <View style={styles.actionRow}>
+          <Button
+            title="Ampliar cobertura ↗"
+            variant="outline"
+            onPress={() => setShowCoverageForm(true)}
+          />
+          <Button
+            title="Descargar póliza"
+            variant="ghost"
+            onPress={() => Alert.alert('Póliza', 'La descarga estará disponible próximamente.')}
+          />
+        </View>
+      ) : (
+        <View style={styles.cardDashed}>
+          <Text style={styles.cardLabel}>Ampliar cobertura</Text>
+          <Text style={styles.coverageHint}>
+            Cobertura actual: ${insurance.amount.toLocaleString('es-AR')}
+          </Text>
 
-        <TextInput
-          style={[styles.input, amountError ? styles.inputError : null]}
-          placeholder="Nuevo monto de cobertura"
-          value={newAmount}
-          onChangeText={(t) => {
-            setNewAmount(t);
-            setAmountError(null);
-          }}
-          keyboardType="decimal-pad"
-        />
+          <TextInput
+            style={[styles.input, amountError ? styles.inputError : null]}
+            placeholder="Nuevo monto de cobertura"
+            placeholderTextColor={colors.text.tertiary}
+            value={newAmount}
+            onChangeText={(t) => { setNewAmount(t); setAmountError(null); }}
+            keyboardType="decimal-pad"
+          />
 
-        {amountError && <Text style={styles.errorText}>{amountError}</Text>}
+          {amountError && <Text style={styles.errorText}>{amountError}</Text>}
 
-        {estimatedDelta && (
-          <Text style={styles.deltaText}>Premio estimado: ${estimatedDelta}</Text>
-        )}
+          {estimatedDelta && (
+            <View style={styles.deltaBanner}>
+              <Text style={styles.deltaText}>Premio estimado: ${estimatedDelta}</Text>
+            </View>
+          )}
 
-        <Button
-          title="Confirmar aumento"
-          onPress={increaseCoverage}
-          loading={increasing}
-          style={styles.button}
-        />
-      </View>
+          <View style={styles.formActions}>
+            <Button
+              title="Cancelar"
+              variant="ghost"
+              onPress={() => { setShowCoverageForm(false); setNewAmount(''); setAmountError(null); }}
+              style={styles.formBtn}
+            />
+            <Button
+              title="Confirmar"
+              onPress={increaseCoverage}
+              loading={increasing}
+              style={styles.formBtn}
+            />
+          </View>
+        </View>
+      )}
     </ScrollView>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background.primary },
-  content: { padding: spacing.md, paddingTop: 60 },
-  backButton: { alignSelf: 'flex-start', marginBottom: spacing.md },
-  title: { ...typography.heading2, color: colors.text.primary, marginBottom: spacing.md },
-  card: {
+  content: { paddingBottom: 40 },
+
+  topbar: {
+    paddingTop: 56,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     backgroundColor: colors.background.card,
-    borderRadius: 12,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    marginBottom: spacing.md,
-  },
-  cardTitle: { ...typography.label, color: colors.text.secondary, textTransform: 'uppercase', fontWeight: '700', marginBottom: spacing.sm },
-  detailRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  backText: { ...typography.body, color: colors.brand.primary, fontWeight: '600' },
+  topbarTitle: { ...typography.label, color: colors.text.secondary },
+
+  mapPlaceholder: {
+    height: 110,
+    backgroundColor: colors.background.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
   },
-  detailLabel: { ...typography.body, color: colors.text.secondary },
-  detailValue: { ...typography.body, color: colors.text.primary, fontWeight: '600' },
+  mapText: { ...typography.bodySmall, color: colors.text.tertiary },
+
+  card: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    margin: spacing.md,
+    marginBottom: 0,
+  },
+  cardLabel: { ...typography.overline, color: colors.text.tertiary, marginBottom: spacing.sm },
+
+  locationName: { ...typography.body, color: colors.text.primary, fontWeight: '700' },
+
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.default,
+  },
+  rowLabel: { ...typography.bodySmall, color: colors.text.secondary },
+  rowValue: { ...typography.bodySmall, color: colors.text.primary, fontWeight: '600' },
+
   combinedBadge: {
     backgroundColor: colors.brand.primaryLight,
     borderRadius: 8,
@@ -170,7 +236,25 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   combinedText: { ...typography.bodySmall, color: colors.brand.primary },
-  hint: { ...typography.bodySmall, color: colors.text.tertiary, marginBottom: spacing.sm },
+
+  actionRow: {
+    padding: spacing.md,
+    paddingBottom: 0,
+    gap: spacing.sm,
+  },
+
+  cardDashed: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border.strong,
+    borderStyle: 'dashed',
+    margin: spacing.md,
+    marginBottom: 0,
+  },
+  coverageHint: { ...typography.bodySmall, color: colors.text.tertiary, marginBottom: spacing.sm },
+
   input: {
     borderWidth: 1,
     borderColor: colors.border.strong,
@@ -183,6 +267,15 @@ const styles = StyleSheet.create({
   },
   inputError: { borderColor: colors.border.error },
   errorText: { ...typography.caption, color: colors.feedback.error, marginBottom: spacing.xs },
-  deltaText: { ...typography.bodySmall, color: colors.feedback.success, marginBottom: spacing.sm },
-  button: {},
+
+  deltaBanner: {
+    backgroundColor: colors.feedback.successBackground,
+    borderRadius: 8,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  deltaText: { ...typography.bodySmall, color: colors.feedback.success, fontWeight: '600' },
+
+  formActions: { flexDirection: 'row', gap: spacing.sm },
+  formBtn: { flex: 1 },
 });
