@@ -5,21 +5,16 @@
     "scheme": "auctify",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1E1B4B"
+      "backgroundColor": "#1E3A8A"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.auctify.mobile"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#1E1B4B"
-      },
       "package": "com.auctify.mobile"
     },
     "web": {
@@ -34,7 +29,8 @@
           "photosPermission": "Auctify necesita acceso a tus fotos para adjuntar el documento.",
           "cameraPermission": "Auctify necesita la cámara para fotografiar tu documento."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
