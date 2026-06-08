@@ -390,20 +390,22 @@ export async function registerAttendee(auctionId: number, clientId: number) {
   });
   if (!client) throw notFound("Cliente");
 
+  const isAdmin = client.category === "platinum";
+
   if (!client.admitted) {
     throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
   }
   if (client.blocked) {
     throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
   }
-  if (!isCategorySufficient(auction.category, client.category)) {
+  if (!isAdmin && !isCategorySufficient(auction.category, client.category)) {
     throw new AppError(
       ErrorCode.CATEGORY_INSUFFICIENT,
       403,
       "Tu categoría no es suficiente para esta subasta"
     );
   }
-  if (client.paymentMethods.length === 0) {
+  if (!isAdmin && client.paymentMethods.length === 0) {
     throw new AppError(
       ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
       403,
@@ -457,20 +459,22 @@ export async function connectToAuction(auctionId: number, clientId: number) {
   });
   if (!client) throw notFound("Cliente");
 
+  const isAdmin = client.category === "platinum";
+
   if (!client.admitted) {
     throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
   }
   if (client.blocked) {
     throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
   }
-  if (!isCategorySufficient(auction.category, client.category)) {
+  if (!isAdmin && !isCategorySufficient(auction.category, client.category)) {
     throw new AppError(
       ErrorCode.CATEGORY_INSUFFICIENT,
       403,
       "Tu categoría no es suficiente para esta subasta"
     );
   }
-  if (client.paymentMethods.length === 0) {
+  if (!isAdmin && client.paymentMethods.length === 0) {
     throw new AppError(
       ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
       403,

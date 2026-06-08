@@ -40,6 +40,10 @@ interface AdminCatalogItem {
   } | null;
 }
 
+interface AdminCatalogResponse {
+  items?: AdminCatalogItem[];
+}
+
 /** Respuesta de POST /auctions/:id/items/:itemId/close */
 interface CloseItemResult {
   sold: boolean;
@@ -354,8 +358,11 @@ export default function AuctionLiveScreen() {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const items = await get<AdminCatalogItem[]>(`/auctions/${auctionId}/catalog`);
-      setCatalog(items);
+      const result = await get<AdminCatalogItem[] | AdminCatalogResponse>(
+        `/auctions/${auctionId}/catalog`
+      );
+      const items = Array.isArray(result) ? result : result.items;
+      setCatalog(Array.isArray(items) ? items : []);
     } catch (err) {
       const apiError = err as ApiError;
       setCatalogError(apiError.message ?? 'No se pudo cargar el catálogo.');
@@ -500,6 +507,7 @@ export default function AuctionLiveScreen() {
     paymentMethods.length > 0;
 
   const selectedMethod = paymentMethods.find((m) => m.id === selectedPaymentMethodId);
+  const isCurrentlyWinning = !!liveStatus?.youAreLeading;
 
   return (
     <View style={styles.screen}>
@@ -572,7 +580,7 @@ export default function AuctionLiveScreen() {
           <Text style={styles.bidCount}>{item.bidCount} puja(s)</Text>
 
           {/* Banner "Vas ganando" */}
-          {liveStatus?.youAreLeading && (
+          {isCurrentlyWinning && (
             <View style={styles.winningBanner}>
               <View style={styles.winningDot} />
               <Text style={styles.winningText}>¡Vas ganando! Tu oferta es la más alta.</Text>
