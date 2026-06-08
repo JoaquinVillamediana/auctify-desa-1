@@ -1,27 +1,18 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { useAuth } from '@/auth/AuthContext';
 import { Loading } from '@/components/Loading';
 
 /**
- * Pantalla de bootstrap: hidrata el token de SecureStore y redirige.
- * - Si hay sesion valida → /(tabs)
- * - Si no → /(auth)/login
+ * Pantalla de bootstrap: espera a que se hidrate la sesión (JWT desde storage) y
+ * redirige de forma **declarativa** con <Redirect> (seguro respecto al montaje del
+ * navegador — evita "Attempted to navigate before mounting the Root Layout").
+ * - Sesión válida → /(tabs)
+ * - Sin sesión → /(auth)/login
  */
 export default function Index() {
-  const router = useRouter();
   const { user, loading } = useAuth();
 
-  useEffect(() => {
-    if (loading) return;
+  if (loading) return <Loading />;
 
-    if (user) {
-      router.replace('/(tabs)');
-    } else {
-      router.replace('/(auth)/login');
-    }
-  }, [user, loading]);
-
-  // Mostrar spinner mientras se hidrata la sesion desde SecureStore
-  return <Loading />;
+  return <Redirect href={user ? '/(tabs)' : '/(auth)/login'} />;
 }

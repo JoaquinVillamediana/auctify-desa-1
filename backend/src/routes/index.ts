@@ -13,6 +13,10 @@ import { Router } from "express";
 import healthRouter from "../modules/health/health.routes";
 import authRouter from "../modules/auth/auth.routes";
 import clientsRouter from "../modules/clients/clients.routes";
+import paymentMethodsRouter from "../modules/paymentMethods/paymentMethods.routes";
+import auctionsRouter from "../modules/auctions/auctions.routes";
+import itemsRouter from "../modules/items/items.routes";
+import penaltiesRouter from "../modules/penalties/penalties.routes";
 
 const router = Router();
 
@@ -30,35 +34,16 @@ router.use("/auth", authRouter);
 router.use("/clients", clientsRouter);
 
 // ── Payment Methods (F02) ─────────────────────────────────────────────────────
-// TODO: implementar módulo paymentMethods
-// GET  /me/payment-methods
-// POST /me/payment-methods
-// POST /payment-methods/:id/verify (admin)
-// DELETE /payment-methods/:id
-// Ver docs/features/F02-payment-methods.md
-// router.use("/payment-methods", paymentMethodsRouter);
-// router.use("/me/payment-methods", myPaymentMethodsRouter);
+// Paths completos (/me/payment-methods, /payment-methods/:id) → montado en la raíz /v1.
+router.use(paymentMethodsRouter);
 
-// ── Auctions (F04) ────────────────────────────────────────────────────────────
-// TODO: implementar módulo auctions
-// GET  /auctions, /auctions/:id
-// POST /auctions (admin)
-// PATCH /auctions/:id (admin)
-// POST /auctions/:id/attendees
-// GET  /auctions/:id/attendees (admin)
-// POST /auctions/:id/connect, /disconnect
-// GET  /auctions/:id/live-status
-// GET  /auctions/:id/streaming
-// Ver docs/features/F04-auctions.md
-// router.use("/auctions", auctionsRouter);
+// ── Auctions · Sesión · Live (F04) ────────────────────────────────────────────
+// GET /auctions, /:id, /:id/streaming; POST /:id/attendees·connect·disconnect; GET /:id/live-status
+router.use("/auctions", auctionsRouter);
 
 // ── Items / Bids (F05) ────────────────────────────────────────────────────────
-// TODO: implementar módulo items y bids
-// GET  /items, /items/:id, /items/:id/bids
-// POST /items (admin, agrega al catálogo)
-// POST /items/:id/bids (postor conectado)
-// Ver docs/features/F05-bidding.md
-// router.use("/items", itemsRouter);
+// GET /items, /:id, /:id/bids; POST /:id/bids (puja con Idempotency-Key)
+router.use("/items", itemsRouter);
 
 // ── Products (F06) ────────────────────────────────────────────────────────────
 // TODO: implementar módulo products
@@ -88,12 +73,9 @@ router.use("/clients", clientsRouter);
 // Ver docs/features/F08-sale-records.md
 // router.use("/sale-records", saleRecordsRouter);
 
-// ── Penalties (F08) ───────────────────────────────────────────────────────────
-// TODO: implementar módulo penalties
-// GET  /me/penalties, /clients/:id/penalties
-// POST /penalties/:id/pay
-// Ver docs/features/F08-sale-records.md (multas)
-// router.use("/penalties", penaltiesRouter);
+// ── Penalties (F10) ───────────────────────────────────────────────────────────
+// Paths completos (/penalties, /me/penalties, /clients/:id/penalties, /penalties/:id/pay) → raíz /v1.
+router.use(penaltiesRouter);
 
 // ── Notifications (F09) ───────────────────────────────────────────────────────
 // TODO: implementar módulo notifications

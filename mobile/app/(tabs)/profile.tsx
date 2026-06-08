@@ -66,11 +66,16 @@ export default function ProfileScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.actionRow}
-          onPress={() => {
-            // TODO → F02: navegar a medios de pago
-          }}
+          onPress={() => router.push('/payment-methods')}
         >
           <Text style={styles.actionLabel}>Medios de pago</Text>
+          <Text style={styles.actionArrow}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionRow}
+          onPress={() => router.push('/penalties')}
+        >
+          <Text style={styles.actionLabel}>Mis multas</Text>
           <Text style={styles.actionArrow}>›</Text>
         </TouchableOpacity>
       </View>
