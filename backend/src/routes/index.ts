@@ -13,6 +13,8 @@ import { Router } from "express";
 import healthRouter from "../modules/health/health.routes";
 import authRouter from "../modules/auth/auth.routes";
 import clientsRouter from "../modules/clients/clients.routes";
+import productsRouter from "../modules/products/products.routes";
+import inclusionRequestsRouter from "../modules/inclusion-requests/inclusion-requests.routes";
 
 const router = Router();
 
@@ -61,24 +63,14 @@ router.use("/clients", clientsRouter);
 // router.use("/items", itemsRouter);
 
 // ── Products (F06) ────────────────────────────────────────────────────────────
-// TODO: implementar módulo products
-// GET  /products, /products/:id
-// POST /products (owner)
-// PATCH /products/:id
-// POST /products/:id/photos
-// GET  /products/:id/location
-// Ver docs/features/F06-products.md
-// router.use("/products", productsRouter);
+// POST /products, GET /products, POST /products/:id/photos
+router.use("/products", productsRouter);
 
-// ── Inclusion Requests (F07) ──────────────────────────────────────────────────
-// TODO: implementar módulo inclusionRequests
-// POST /inclusion-requests (owner)
-// GET  /inclusion-requests (owner/admin)
-// GET  /inclusion-requests/:id
+// ── Inclusion Requests (F06) ──────────────────────────────────────────────────
+// POST /inclusion-requests, GET /inclusion-requests, GET /inclusion-requests/:id
 // POST /inclusion-requests/:id/inspection (admin)
 // POST /inclusion-requests/:id/owner-response (owner)
-// Ver docs/features/F07-inclusion-requests.md
-// router.use("/inclusion-requests", inclusionRequestsRouter);
+router.use("/inclusion-requests", inclusionRequestsRouter);
 
 // ── Sale Records (F08) ────────────────────────────────────────────────────────
 // TODO: implementar módulo saleRecords
