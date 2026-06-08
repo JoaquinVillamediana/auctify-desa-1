@@ -20,6 +20,9 @@ import saleRecordsRouter from "../modules/sale-records/sale-records.routes";
 import insuranceRouter from "../modules/insurance/insurance.routes";
 import productsRouter from "../modules/products/products.routes";
 import ownersRouter from "../modules/owners/owners.routes";
+import inclusionRequestsRouter from "../modules/inclusion-requests/inclusion-requests.routes";
+import metricsRouter from "../modules/metrics/metrics.routes";
+import notificationsRouter from "../modules/notifications/notifications.routes";
 
 const router = Router();
 
@@ -54,8 +57,9 @@ router.use("/sale-records", saleRecordsRouter);
 // POST /insurance/:policyNumber/coverage-increase
 router.use("/insurance", insuranceRouter);
 
-// ── Products (F11 — ubicación) ────────────────────────────────────────────────
-// GET  /products/:id/location
+// ── Products (F06/F11) ────────────────────────────────────────────────────────
+// POST /products, GET /products, POST /products/:id/photos (F06)
+// GET  /products/:id/location (F11)
 router.use("/products", productsRouter);
 
 // ── Owners (F11 — cuentas de cobro) ──────────────────────────────────────────
@@ -68,15 +72,17 @@ router.use("/owners", ownersRouter);
 router.use(penaltiesRouter);
 
 // ── Inclusion Requests (F06) ──────────────────────────────────────────────────
-// TODO: implementar módulo inclusionRequests — ver docs/features/F06-inclusion-requests.md
-// router.use("/inclusion-requests", inclusionRequestsRouter);
+// POST /inclusion-requests, GET /inclusion-requests, GET /inclusion-requests/:id
+// POST /inclusion-requests/:id/inspection (admin)
+// POST /inclusion-requests/:id/owner-response (owner)
+router.use("/inclusion-requests", inclusionRequestsRouter);
 
 // ── Notifications (F09) ───────────────────────────────────────────────────────
-// TODO: implementar módulo notifications — ver docs/features/F09-notifications.md
-// router.use("/notifications", notificationsRouter);
+// GET /me/notifications, POST /notifications/:id/read
+router.use("/", notificationsRouter);
 
 // ── Metrics (F08) ─────────────────────────────────────────────────────────────
-// TODO: implementar módulo metrics — ver docs/features/F08-metrics.md
-// router.use("/metrics", metricsRouter);
+// GET /me/metrics, GET /clients/:id/metrics (admin)
+router.use("/", metricsRouter);
 
 export default router;

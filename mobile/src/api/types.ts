@@ -304,6 +304,28 @@ export interface ProductLocation {
   receivedAt: string;
 }
 
+// ─────────────── Product / Photo ───────────────
+
+export interface Photo {
+  id: number;
+  productId: number;
+  photoUrl: string;
+}
+
+export interface Product {
+  id: number;
+  fullDescription: string;
+  catalogDescription?: string | null;
+  date?: string | null;
+  pieceCount: number;
+  artist?: string | null;
+  historicalDate?: string | null;
+  history?: string | null;
+  available: boolean;
+  ownerId: number;
+  photos: Photo[];
+}
+
 // ─────────────── InclusionRequest ───────────────
 
 export type InclusionRequestStatus =

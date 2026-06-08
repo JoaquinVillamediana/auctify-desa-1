@@ -4,4 +4,5 @@ dist/
 *.db
 *.db-journal
 uploads/
+uploads-test/
 coverage/
