@@ -46,7 +46,7 @@ type ConnectState =
 export default function AuctionLiveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // ── Estado de la conexión ────────────────────────────────────────────────
   const [connectState, setConnectState] = useState<ConnectState>('idle');
@@ -146,6 +146,13 @@ export default function AuctionLiveScreen() {
   // ── Desconexión al desmontar ─────────────────────────────────────────────
 
   useEffect(() => {
+    // Esperar a que se hidrate la sesión (token disponible) antes de conectar.
+    // Evita el race en cold-load de /auction/:id (connect sin JWT → 401).
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/(auth)/login');
+      return;
+    }
     void connectToAuction();
 
     return () => {
@@ -157,7 +164,7 @@ export default function AuctionLiveScreen() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auctionId]);
+  }, [auctionId, authLoading, user]);
 
   // ── Cargar medios de pago verificados ────────────────────────────────────
 
