@@ -49,12 +49,16 @@ function startsIn(iso: string): string {
   return `${Math.round(h / 24)} d`;
 }
 
-function lotsFromCatalogs(entries: ({ auction: Auction; catalog: AuctionCatalog } | null)[]): FeedLot[] {
+function lotsFromCatalogs(
+  entries: ({ auction: Auction; catalog: AuctionCatalog } | null)[],
+  options: { onlyActive?: boolean } = {}
+): FeedLot[] {
   const feed: FeedLot[] = [];
   for (const entry of entries) {
     if (!entry) continue;
     for (const it of entry.catalog.items) {
       if (it.status === 'sold' || it.status === 'unsold') continue;
+      if (options.onlyActive && it.status !== 'active') continue;
       feed.push({
         id: it.id,
         lotNumber: it.lotNumber,
@@ -74,7 +78,10 @@ function lotsFromCatalogs(entries: ({ auction: Auction; catalog: AuctionCatalog 
   return feed;
 }
 
-async function fetchLotsFor(status: string): Promise<FeedLot[]> {
+async function fetchLotsFor(
+  status: AuctionStatus,
+  options: { onlyActive?: boolean } = {}
+): Promise<FeedLot[]> {
   const auctions = await get<Auction[]>(`/auctions?status=${status}`);
   const catalogs = await Promise.all(
     auctions.map((a) =>
@@ -83,7 +90,7 @@ async function fetchLotsFor(status: string): Promise<FeedLot[]> {
         .catch(() => null)
     )
   );
-  return lotsFromCatalogs(catalogs);
+  return lotsFromCatalogs(catalogs, options);
 }
 
 /**
@@ -107,7 +114,7 @@ export default function HomeScreen() {
     try {
       const [m, live, upcoming] = await Promise.all([
         get<Metrics>('/me/metrics').catch(() => null),
-        fetchLotsFor('open'),
+        fetchLotsFor('open', { onlyActive: true }),
         fetchLotsFor('scheduled'),
       ]);
       setMetrics(m);
