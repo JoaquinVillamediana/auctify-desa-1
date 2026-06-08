@@ -4,6 +4,9 @@
  *
  * GET  /auctions                      — listar subastas (público)
  * GET  /auctions/:id                  — detalle (público)
+ * POST /auctions                      — crear subasta (ADMIN)
+ * PATCH /auctions/:id                 — actualizar subasta (ADMIN)
+ * GET  /auctions/:id/catalog          — catálogo con ítems (optionalAuth para precios)
  * GET  /auctions/:id/streaming        — URL de streaming (requireAuth)
  * POST /auctions/:id/attendees        — registrarse como asistente (requireAuth)
  * GET  /auctions/:id/attendees        — listar asistentes (ADMIN)
@@ -11,15 +14,17 @@
  * POST /auctions/:id/disconnect       — desconectarse (requireAuth)
  * GET  /auctions/:id/live-status      — estado en tiempo real (requireAuth)
  *
- * Ver docs/features/F04-auction-session-live.md
+ * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
  */
 
 import { Router } from "express";
 import { validate } from "../../middleware/validate";
-import { requireAuth, requireRole } from "../../middleware/auth";
+import { requireAuth, optionalAuth, requireRole } from "../../middleware/auth";
 import {
   listAuctionsSchema,
   auctionIdSchema,
+  createAuctionSchema,
+  updateAuctionSchema,
   registerAttendeeSchema,
 } from "./auctions.schema";
 import * as ctrl from "./auctions.controller";
@@ -31,6 +36,16 @@ const router = Router();
 router.get("/", validate(listAuctionsSchema), ctrl.listAuctions);
 
 router.get("/:id", validate(auctionIdSchema), ctrl.getAuction);
+
+// ── Admin CRUD ────────────────────────────────────────────────────────────────
+
+router.post("/", requireAuth, requireRole("ADMIN"), validate(createAuctionSchema), ctrl.createAuction);
+
+router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateAuctionSchema), ctrl.updateAuction);
+
+// ── Catálogo de ítems ─────────────────────────────────────────────────────────
+
+router.get("/:id/catalog", optionalAuth, validate(auctionIdSchema), ctrl.getAuctionCatalog);
 
 // ── Streaming (clientes autenticados) ────────────────────────────────────────
 

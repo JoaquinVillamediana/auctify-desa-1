@@ -2,7 +2,7 @@
  * Controlador del módulo items/bids.
  * Traduce requests HTTP → service → response.
  *
- * Ver docs/features/F05-bidding.md
+ * Ver docs/features/F03-auctions.md y docs/features/F05-bidding.md
  */
 
 import { Request, Response, NextFunction } from "express";
@@ -44,6 +44,37 @@ export async function getItem(
     const isAuthenticated = !!req.auth;
     const detail = await itemsService.getItemDetail(itemId, isAuthenticated);
     res.status(200).json(detail);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── POST /items (admin) ───────────────────────────────────────────────────────
+
+export async function createItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await itemsService.createItem(req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── PATCH /items/:id (admin) ──────────────────────────────────────────────────
+
+export async function updateItem(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as unknown as number;
+    const result = await itemsService.updateItem(id, req.body);
+    res.status(200).json(result);
   } catch (err) {
     next(err);
   }

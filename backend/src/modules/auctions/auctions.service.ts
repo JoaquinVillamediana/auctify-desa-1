@@ -1,6 +1,6 @@
 /**
- * Servicio de subastas y sesiones en vivo.
- * Ver docs/features/F04-auction-session-live.md y docs/features/F05-bidding.md
+ * Servicio de subastas, catálogo y sesiones en vivo.
+ * Ver docs/features/F03-auctions.md, F04-auction-session-live.md y F05-bidding.md
  *
  * Exporta computeRange() para reutilizarlo en items/bids.
  */
@@ -10,14 +10,9 @@ import { AppError, ErrorCode, notFound } from "../../lib/errors";
 
 // ── Constantes de categoría ─────────────────────────────────────────────────
 
-/**
- * Orden de categorías (de menor a mayor).
- * auction.category <= client.category equivale a índice menor o igual.
- */
 const CATEGORY_ORDER = ["common", "special", "silver", "gold", "platinum"] as const;
 type Category = (typeof CATEGORY_ORDER)[number];
 
-/** Categorías exentas de límites de puja (gold y platinum). */
 const EXEMPT_CATEGORIES: string[] = ["gold", "platinum"];
 
 // ── Helper de rango de puja ─────────────────────────────────────────────────
@@ -36,11 +31,6 @@ export interface BidRange {
  *   - Con pujas previas: minBidAllowed = bestBid + 0.01 * base
  *   - maxBidAllowed = lastBidAmount + 0.20 * base (solo si hay lastBid; else null)
  *   - Si auction.category ∈ {gold, platinum} → min/max = null (sin límites)
- *
- * @param item          - CatalogItem con basePrice
- * @param auctionCategory - Categoría de la subasta
- * @param bestBid       - Mejor puja actual (null si no hay pujas)
- * @param lastBidAmount - Importe de la última puja en tiempo (null si no hay pujas)
  */
 export function computeRange(
   item: { basePrice: number },
@@ -48,7 +38,6 @@ export function computeRange(
   bestBid: number | null,
   lastBidAmount: number | null
 ): BidRange {
-  // Categorías gold/platinum: sin límites de rango
   if (EXEMPT_CATEGORIES.includes(auctionCategory)) {
     return { minBidAllowed: null, maxBidAllowed: null };
   }
@@ -57,23 +46,19 @@ export function computeRange(
 
   const minBidAllowed =
     bestBid !== null
-      ? bestBid + 0.01 * base       // hay pujas previas: superar en 1% del base
-      : base;                         // primera puja: mínimo igual al base
+      ? bestBid + 0.01 * base
+      : base;
 
   const maxBidAllowed =
     lastBidAmount !== null
-      ? lastBidAmount + 0.2 * base   // máximo: última puja + 20% del base
-      : null;                         // sin pujas previas: sin máximo
+      ? lastBidAmount + 0.2 * base
+      : null;
 
   return { minBidAllowed, maxBidAllowed };
 }
 
-// ── Helpers de mapeo ────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Verifica si la categoría del cliente es suficiente para la subasta.
- * auction.category <= client.category (según CATEGORY_ORDER).
- */
 function isCategorySufficient(
   auctionCategory: string,
   clientCategory: string | null
@@ -84,7 +69,6 @@ function isCategorySufficient(
   return aIdx <= cIdx;
 }
 
-/** Mapea un Auction de Prisma al shape Auction del OpenAPI. */
 function mapAuction(a: {
   id: number;
   startsAt: Date;
@@ -123,10 +107,9 @@ export interface ListAuctionsFilters {
   status?: string;
   category?: string;
   currency?: string;
-  date?: string; // ISO date, filtra por día
+  date?: string;
 }
 
-/** Lista todas las subastas con filtros opcionales. */
 export async function listAuctions(filters: ListAuctionsFilters) {
   const where: Record<string, unknown> = {};
   if (filters.status) where.status = filters.status;
@@ -145,7 +128,6 @@ export async function listAuctions(filters: ListAuctionsFilters) {
 
 // ── GET /auctions/:id ────────────────────────────────────────────────────────
 
-/** Devuelve el detalle de una subasta (AuctionDetail). */
 export async function getAuctionDetail(auctionId: number) {
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
@@ -167,20 +149,131 @@ export async function getAuctionDetail(auctionId: number) {
   };
 }
 
+// ── POST /auctions (admin) ────────────────────────────────────────────────────
+
+export async function createAuction(data: {
+  startsAt: string;
+  status?: string;
+  currency: string;
+  category: string;
+  auctioneerId?: number;
+  location?: string;
+  attendeeCapacity?: number;
+  hasWarehouse?: boolean;
+  ownSecurity?: boolean;
+  isCollection?: boolean;
+  collectionName?: string;
+  streamingUrl?: string;
+}) {
+  return prisma.auction.create({
+    data: {
+      startsAt: new Date(data.startsAt),
+      status: data.status ?? "scheduled",
+      currency: data.currency,
+      category: data.category,
+      auctioneerId: data.auctioneerId ?? null,
+      location: data.location ?? null,
+      attendeeCapacity: data.attendeeCapacity ?? null,
+      hasWarehouse: data.hasWarehouse ?? false,
+      ownSecurity: data.ownSecurity ?? false,
+      isCollection: data.isCollection ?? false,
+      collectionName: data.collectionName ?? null,
+      streamingUrl: data.streamingUrl ?? null,
+    },
+  });
+}
+
+// ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
+
+export async function updateAuction(
+  id: number,
+  data: {
+    startsAt?: string;
+    status?: string;
+    currency?: string;
+    category?: string;
+    auctioneerId?: number | null;
+    location?: string | null;
+    attendeeCapacity?: number | null;
+    hasWarehouse?: boolean;
+    ownSecurity?: boolean;
+    isCollection?: boolean;
+    collectionName?: string | null;
+    streamingUrl?: string | null;
+  }
+) {
+  const existing = await prisma.auction.findUnique({ where: { id } });
+  if (!existing) throw notFound("Subasta");
+
+  return prisma.auction.update({
+    where: { id },
+    data: {
+      ...(data.startsAt !== undefined && { startsAt: new Date(data.startsAt) }),
+      ...(data.status !== undefined && { status: data.status }),
+      ...(data.currency !== undefined && { currency: data.currency }),
+      ...(data.category !== undefined && { category: data.category }),
+      ...(data.auctioneerId !== undefined && { auctioneerId: data.auctioneerId }),
+      ...(data.location !== undefined && { location: data.location }),
+      ...(data.attendeeCapacity !== undefined && { attendeeCapacity: data.attendeeCapacity }),
+      ...(data.hasWarehouse !== undefined && { hasWarehouse: data.hasWarehouse }),
+      ...(data.ownSecurity !== undefined && { ownSecurity: data.ownSecurity }),
+      ...(data.isCollection !== undefined && { isCollection: data.isCollection }),
+      ...(data.collectionName !== undefined && { collectionName: data.collectionName }),
+      ...(data.streamingUrl !== undefined && { streamingUrl: data.streamingUrl }),
+    },
+  });
+}
+
+// ── GET /auctions/:id/catalog ─────────────────────────────────────────────────
+
+export async function getAuctionCatalog(auctionId: number, isAuthenticated: boolean) {
+  const auction = await prisma.auction.findUnique({
+    where: { id: auctionId },
+    include: {
+      catalog: {
+        include: {
+          items: {
+            include: {
+              product: { include: { photos: true } },
+            },
+            orderBy: { lotNumber: "asc" },
+          },
+        },
+      },
+    },
+  });
+
+  if (!auction) throw notFound("Subasta");
+  if (!auction.catalog) throw notFound("Catálogo");
+
+  return {
+    catalogId: auction.catalog.id,
+    description: auction.catalog.description,
+    auctionId: auction.id,
+    items: auction.catalog.items.map((item) => ({
+      id: item.id,
+      lotNumber: item.lotNumber,
+      catalogDescription: item.product.catalogDescription,
+      basePrice: isAuthenticated ? item.basePrice : null,
+      commission: item.commission,
+      status: item.status,
+      auctioned: item.auctioned,
+      photo: item.product.photos[0]?.photoUrl ?? null,
+    })),
+  };
+}
+
 // ── GET /auctions/:id/streaming ──────────────────────────────────────────────
 
-/** Devuelve la URL de streaming para clientes admitidos (stub). */
 export async function getStreamingUrl(auctionId: number, clientId: number) {
   const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
   if (!auction) throw notFound("Subasta");
 
-  // Verificar que el cliente esté admitido
   const client = await prisma.client.findUnique({ where: { id: clientId } });
   if (!client || !client.admitted) {
     throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
   }
 
-  // URL stub — en producción integrar con proveedor de streaming
   const expiresAt = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3 horas
   return {
     url: auction.streamingUrl ?? `https://stream.auctify.example/auction/${auctionId}`,
@@ -190,7 +283,6 @@ export async function getStreamingUrl(auctionId: number, clientId: number) {
 
 // ── POST /auctions/:id/attendees ─────────────────────────────────────────────
 
-/** Registra a un cliente como asistente de una subasta. */
 export async function registerAttendee(auctionId: number, clientId: number) {
   const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
   if (!auction) throw notFound("Subasta");
@@ -203,7 +295,6 @@ export async function registerAttendee(auctionId: number, clientId: number) {
   });
   if (!client) throw notFound("Cliente");
 
-  // Validaciones en orden (F04)
   if (!client.admitted) {
     throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
   }
@@ -225,7 +316,6 @@ export async function registerAttendee(auctionId: number, clientId: number) {
     );
   }
 
-  // Verificar si ya es asistente (409)
   const existing = await prisma.attendee.findUnique({
     where: { auctionId_clientId: { auctionId, clientId } },
   });
@@ -233,7 +323,6 @@ export async function registerAttendee(auctionId: number, clientId: number) {
     throw new AppError(ErrorCode.DUPLICATE_ENTRY, 409, "Ya estás registrado en esta subasta");
   }
 
-  // Asignar siguiente bidderNumber secuencial dentro de la subasta
   const maxBidder = await prisma.attendee.findFirst({
     where: { auctionId },
     orderBy: { bidderNumber: "desc" },
@@ -241,16 +330,13 @@ export async function registerAttendee(auctionId: number, clientId: number) {
   });
   const bidderNumber = (maxBidder?.bidderNumber ?? 0) + 1;
 
-  const attendee = await prisma.attendee.create({
+  return prisma.attendee.create({
     data: { auctionId, clientId, bidderNumber },
   });
-
-  return attendee;
 }
 
 // ── GET /auctions/:id/attendees ──────────────────────────────────────────────
 
-/** Lista asistentes de una subasta (solo admin). */
 export async function listAttendees(auctionId: number) {
   const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
   if (!auction) throw notFound("Subasta");
@@ -260,18 +346,12 @@ export async function listAttendees(auctionId: number) {
 
 // ── POST /auctions/:id/connect ───────────────────────────────────────────────
 
-/** Conecta al cliente a la subasta en vivo. Crea sesión y Attendee si no existe. */
 export async function connectToAuction(auctionId: number, clientId: number) {
   const auction = await prisma.auction.findUnique({ where: { id: auctionId } });
   if (!auction) throw notFound("Subasta");
 
-  // 1. Subasta debe estar abierta
   if (auction.status !== "open") {
-    throw new AppError(
-      ErrorCode.VALIDATION_ERROR,
-      422,
-      "La subasta no está abierta"
-    );
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "La subasta no está abierta");
   }
 
   const client = await prisma.client.findUnique({
@@ -282,15 +362,12 @@ export async function connectToAuction(auctionId: number, clientId: number) {
   });
   if (!client) throw notFound("Cliente");
 
-  // 2. Cliente admitido
   if (!client.admitted) {
     throw new AppError(ErrorCode.NOT_ADMITTED, 403, "Tu cuenta no está verificada aún");
   }
-  // 3. No bloqueado
   if (client.blocked) {
     throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
   }
-  // 4. Categoría suficiente
   if (!isCategorySufficient(auction.category, client.category)) {
     throw new AppError(
       ErrorCode.CATEGORY_INSUFFICIENT,
@@ -298,7 +375,6 @@ export async function connectToAuction(auctionId: number, clientId: number) {
       "Tu categoría no es suficiente para esta subasta"
     );
   }
-  // 5. Medio de pago verificado
   if (client.paymentMethods.length === 0) {
     throw new AppError(
       ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
@@ -307,17 +383,13 @@ export async function connectToAuction(auctionId: number, clientId: number) {
     );
   }
 
-  // 6. Invariante: solo 1 sesión activa global por cliente
   const activeSession = await prisma.auctionSession.findFirst({
     where: { clientId, active: true },
   });
   if (activeSession) {
-    // Idempotente: si ya estás conectado a ESTA subasta, devolvemos la sesión existente
-    // (re-entrar a la misma subasta no es un error).
     if (activeSession.auctionId === auctionId) {
       return activeSession;
     }
-    // 409 solo si la sesión activa es de OTRA subasta (no se puede estar en dos a la vez).
     throw new AppError(
       ErrorCode.ALREADY_CONNECTED,
       409,
@@ -326,7 +398,6 @@ export async function connectToAuction(auctionId: number, clientId: number) {
     );
   }
 
-  // Crear Attendee si no existe (auto-registro al conectar)
   let attendee = await prisma.attendee.findUnique({
     where: { auctionId_clientId: { auctionId, clientId } },
   });
@@ -342,25 +413,19 @@ export async function connectToAuction(auctionId: number, clientId: number) {
     });
   }
 
-  // Crear sesión activa
-  const session = await prisma.auctionSession.create({
+  return prisma.auctionSession.create({
     data: { auctionId, clientId, startedAt: new Date(), active: true },
   });
-
-  return session;
 }
 
 // ── POST /auctions/:id/disconnect ────────────────────────────────────────────
 
-/** Desconecta al cliente de la subasta (cierra la sesión activa). */
 export async function disconnectFromAuction(auctionId: number, clientId: number) {
   const session = await prisma.auctionSession.findFirst({
     where: { auctionId, clientId, active: true },
   });
 
-  if (!session) {
-    throw notFound("Sesión activa");
-  }
+  if (!session) throw notFound("Sesión activa");
 
   return prisma.auctionSession.update({
     where: { id: session.id },
@@ -370,7 +435,6 @@ export async function disconnectFromAuction(auctionId: number, clientId: number)
 
 // ── GET /auctions/:id/live-status ────────────────────────────────────────────
 
-/** Construye el AuctionLiveStatus para el cliente conectado. */
 export async function getLiveStatus(auctionId: number, clientId: number) {
   const auction = await prisma.auction.findUnique({
     where: { id: auctionId },
@@ -390,29 +454,21 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
 
   if (!auction) throw notFound("Subasta");
 
-  // Verificar que el cliente tenga sesión activa en ESTA subasta
   const session = await prisma.auctionSession.findFirst({
     where: { auctionId, clientId, active: true },
   });
   if (!session) {
-    throw new AppError(
-      ErrorCode.NOT_CONNECTED,
-      403,
-      "No estás conectado a esta subasta"
-    );
+    throw new AppError(ErrorCode.NOT_CONNECTED, 403, "No estás conectado a esta subasta");
   }
 
-  // Cantidad de sesiones activas (connectedCount)
   const connectedCount = await prisma.auctionSession.count({
     where: { auctionId, active: true },
   });
 
-  // Construir currentItem con rango de puja
   let currentItem = null;
   if (auction.currentItemId && auction.currentItem) {
     const item = auction.currentItem;
 
-    // Mejor puja (mayor importe) y última puja (más reciente por timestamp)
     const bestBidRow = await prisma.bid.findFirst({
       where: { itemId: item.id },
       orderBy: { amount: "desc" },
@@ -439,8 +495,7 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
     currentItem = {
       itemId: item.id,
       productId: item.productId,
-      catalogDescription:
-        item.product.catalogDescription ?? `Lote #${item.id}`,
+      catalogDescription: item.product.catalogDescription ?? `Lote #${item.id}`,
       basePrice: item.basePrice,
       bestBid,
       bestBidBidderNumber: bestBidRow?.attendee.bidderNumber ?? null,
@@ -450,7 +505,6 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
     };
   }
 
-  // youWereOutbid: el cliente fue el mejor postor pero fue superado
   let youWereOutbid = false;
   if (auction.currentItemId && currentItem) {
     const attendee = await prisma.attendee.findUnique({
@@ -458,24 +512,16 @@ export async function getLiveStatus(auctionId: number, clientId: number) {
     });
 
     if (attendee) {
-      // El cliente hizo al menos una puja pero no es el ganador actual
       const clientHasBid = await prisma.bid.findFirst({
         where: { itemId: auction.currentItemId, attendeeId: attendee.id },
       });
-
       const clientIsWinner = await prisma.bid.findFirst({
-        where: {
-          itemId: auction.currentItemId,
-          attendeeId: attendee.id,
-          winner: true,
-        },
+        where: { itemId: auction.currentItemId, attendeeId: attendee.id, winner: true },
       });
-
       youWereOutbid = clientHasBid !== null && clientIsWinner === null;
     }
   }
 
-  // Último evento de la subasta
   const lastEventRow = await prisma.auctionEvent.findFirst({
     where: { auctionId },
     orderBy: { createdAt: "desc" },

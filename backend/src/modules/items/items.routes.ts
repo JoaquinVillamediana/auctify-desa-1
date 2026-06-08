@@ -4,16 +4,24 @@
  *
  * GET  /items              — listar ítems (optionalAuth para basePrice)
  * GET  /items/:id          — detalle (optionalAuth)
+ * POST /items              — crear ítem en catálogo (ADMIN)
+ * PATCH /items/:id         — actualizar ítem (ADMIN)
  * GET  /items/:id/bids     — historial de pujas (requireAuth)
  * POST /items/:id/bids     — crear puja (requireAuth; header Idempotency-Key)
  *
- * Ver docs/features/F05-bidding.md
+ * Ver docs/features/F03-auctions.md y docs/features/F05-bidding.md
  */
 
 import { Router } from "express";
 import { validate } from "../../middleware/validate";
-import { requireAuth, optionalAuth } from "../../middleware/auth";
-import { listItemsSchema, itemIdSchema, createBidSchema } from "./items.schema";
+import { requireAuth, optionalAuth, requireRole } from "../../middleware/auth";
+import {
+  listItemsSchema,
+  itemIdSchema,
+  createItemSchema,
+  updateItemSchema,
+  createBidSchema,
+} from "./items.schema";
 import * as ctrl from "./items.controller";
 
 const router = Router();
@@ -23,6 +31,12 @@ const router = Router();
 router.get("/", optionalAuth, validate(listItemsSchema), ctrl.listItems);
 
 router.get("/:id", optionalAuth, validate(itemIdSchema), ctrl.getItem);
+
+// ── Admin CRUD ────────────────────────────────────────────────────────────────
+
+router.post("/", requireAuth, requireRole("ADMIN"), validate(createItemSchema), ctrl.createItem);
+
+router.patch("/:id", requireAuth, requireRole("ADMIN"), validate(updateItemSchema), ctrl.updateItem);
 
 // ── Historial de pujas ────────────────────────────────────────────────────────
 

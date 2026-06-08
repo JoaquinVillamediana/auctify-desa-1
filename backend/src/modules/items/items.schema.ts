@@ -40,6 +40,31 @@ export const itemIdSchema = z.object({
   params: z.object({ id: numericId }),
 });
 
+/** POST /items — crear ítem en catálogo (admin). */
+export const createItemSchema = z.object({
+  body: z.object({
+    catalogId: z.number().int(),
+    productId: z.number().int(),
+    lotNumber: z.number().int(),
+    basePrice: z.number().positive(),
+    commission: z.number().min(0).max(1),
+    status: z.string().optional(),
+  }),
+});
+
+/** PATCH /items/:id — actualizar ítem (admin). */
+export const updateItemSchema = z.object({
+  params: z.object({ id: numericId }),
+  body: z.object({
+    lotNumber: z.number().int().optional(),
+    basePrice: z.number().positive().optional(),
+    commission: z.number().min(0).max(1).optional(),
+    status: z.string().optional(),
+    auctioned: z.boolean().optional(),
+    insurancePolicy: z.string().nullable().optional(),
+  }),
+});
+
 /**
  * POST /items/:id/bids
  * Body: { amount, paymentMethodId }

@@ -1,6 +1,6 @@
 /**
  * Servicio de ítems y pujas.
- * Ver docs/features/F05-bidding.md y ADR-002-realtime-polling.md
+ * Ver docs/features/F03-auctions.md, F05-bidding.md y ADR-002-realtime-polling.md
  *
  * La lógica de concurrencia usa una transacción + recompute del bestBid
  * dentro de la transacción para serializar las pujas (BEGIN IMMEDIATE en SQLite).
@@ -19,7 +19,6 @@ export interface ListItemsFilters {
   auctioned?: boolean;
 }
 
-/** Mapea un CatalogItem de Prisma al shape del OpenAPI. */
 function mapItem(
   item: {
     id: number;
@@ -38,7 +37,6 @@ function mapItem(
     catalogId: item.catalogId,
     productId: item.productId,
     lotNumber: item.lotNumber,
-    // basePrice solo visible para autenticados
     basePrice: isAuthenticated ? item.basePrice : null,
     commission: item.commission,
     status: item.status,
@@ -46,14 +44,12 @@ function mapItem(
   };
 }
 
-/** Lista ítems con filtros opcionales. */
 export async function listItems(
   filters: ListItemsFilters,
   isAuthenticated: boolean
 ) {
   let resolvedCatalogId = filters.catalogId;
 
-  // Si viene auctionId, resolver el catalogId de la subasta
   if (filters.auctionId && !resolvedCatalogId) {
     const catalog = await prisma.catalog.findFirst({
       where: { auctionId: filters.auctionId },
@@ -77,10 +73,6 @@ export async function listItems(
 
 // ── GET /items/:id ─────────────────────────────────────────────────────────────
 
-/**
- * Detalle de un ítem (CatalogItemDetail): base + bestBid + rango de puja.
- * Requiere acceso al catálogo de la subasta para calcular el rango.
- */
 export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
   const item = await prisma.catalogItem.findUnique({
     where: { id: itemId },
@@ -94,7 +86,6 @@ export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
 
   if (!item) throw notFound("Ítem");
 
-  // Mejor puja y última puja
   const bestBidRow = await prisma.bid.findFirst({
     where: { itemId },
     orderBy: { amount: "desc" },
@@ -133,9 +124,60 @@ export async function getItemDetail(itemId: number, isAuthenticated: boolean) {
   };
 }
 
+// ── POST /items (admin) ───────────────────────────────────────────────────────
+
+export async function createItem(data: {
+  catalogId: number;
+  productId: number;
+  lotNumber: number;
+  basePrice: number;
+  commission: number;
+  status?: string;
+}) {
+  return prisma.catalogItem.create({
+    data: {
+      catalogId: data.catalogId,
+      productId: data.productId,
+      lotNumber: data.lotNumber,
+      basePrice: data.basePrice,
+      commission: data.commission,
+      status: data.status ?? "pending",
+      auctioned: false,
+    },
+  });
+}
+
+// ── PATCH /items/:id (admin) ──────────────────────────────────────────────────
+
+export async function updateItem(
+  id: number,
+  data: {
+    lotNumber?: number;
+    basePrice?: number;
+    commission?: number;
+    status?: string;
+    auctioned?: boolean;
+    insurancePolicy?: string | null;
+  }
+) {
+  const existing = await prisma.catalogItem.findUnique({ where: { id } });
+  if (!existing) throw notFound("Ítem");
+
+  return prisma.catalogItem.update({
+    where: { id },
+    data: {
+      ...(data.lotNumber !== undefined && { lotNumber: data.lotNumber }),
+      ...(data.basePrice !== undefined && { basePrice: data.basePrice }),
+      ...(data.commission !== undefined && { commission: data.commission }),
+      ...(data.status !== undefined && { status: data.status }),
+      ...(data.auctioned !== undefined && { auctioned: data.auctioned }),
+      ...(data.insurancePolicy !== undefined && { insurancePolicy: data.insurancePolicy }),
+    },
+  });
+}
+
 // ── GET /items/:id/bids ───────────────────────────────────────────────────────
 
-/** Historial de pujas de un ítem en orden cronológico (ascendente por timestamp, id). */
 export async function listBids(itemId: number) {
   const item = await prisma.catalogItem.findUnique({ where: { id: itemId } });
   if (!item) throw notFound("Ítem");
@@ -168,7 +210,6 @@ export interface CreateBidInput {
   amount: number;
   paymentMethodId: number;
   idempotencyKey: string;
-  /** Mejor puja que el cliente conocía (para detección de BID_SUPERSEDED). */
   knownBestBid?: number | null;
 }
 
@@ -193,7 +234,6 @@ export async function createBid(input: CreateBidInput) {
     });
     if (existing) return existing;
 
-    // Cargar el ítem con su catálogo y subasta
     const item = await tx.catalogItem.findUnique({
       where: { id: input.itemId },
       include: {
@@ -224,22 +264,14 @@ export async function createBid(input: CreateBidInput) {
     });
 
     if (!attendee) {
-      throw new AppError(
-        ErrorCode.NOT_CONNECTED,
-        403,
-        "No estás conectado a esta subasta"
-      );
+      throw new AppError(ErrorCode.NOT_CONNECTED, 403, "No estás conectado a esta subasta");
     }
 
     const activeSession = await tx.auctionSession.findFirst({
       where: { auctionId, clientId: input.clientId, active: true },
     });
     if (!activeSession) {
-      throw new AppError(
-        ErrorCode.NOT_CONNECTED,
-        403,
-        "No estás conectado a esta subasta"
-      );
+      throw new AppError(ErrorCode.NOT_CONNECTED, 403, "No estás conectado a esta subasta");
     }
 
     // 3. Validar medio de pago
@@ -248,30 +280,19 @@ export async function createBid(input: CreateBidInput) {
     });
 
     if (!paymentMethod || paymentMethod.clientId !== input.clientId) {
-      throw new AppError(
-        ErrorCode.PAYMENT_METHOD_NOT_OWNED,
-        403,
-        "El medio de pago no te pertenece"
-      );
+      throw new AppError(ErrorCode.PAYMENT_METHOD_NOT_OWNED, 403, "El medio de pago no te pertenece");
     }
     if (paymentMethod.status !== "verified") {
-      throw new AppError(
-        ErrorCode.NO_VERIFIED_PAYMENT_METHOD,
-        403,
-        "El medio de pago no está verificado"
-      );
+      throw new AppError(ErrorCode.NO_VERIFIED_PAYMENT_METHOD, 403, "El medio de pago no está verificado");
     }
 
-    // Verificar cliente no bloqueado
     const client = await tx.client.findUnique({ where: { id: input.clientId } });
     if (!client || client.blocked) {
       throw new AppError(ErrorCode.CLIENT_BLOCKED, 403, "La cuenta está bloqueada");
     }
 
-    // Regla del cheque certificado
     if (paymentMethod.type === "certified_check") {
       const reservedAmount = paymentMethod.reservedAmount ?? 0;
-      // Suma de pujas ganadores (compromisos del cliente con este medio de pago)
       const committed = await tx.bid.aggregate({
         where: {
           attendee: { clientId: input.clientId },
@@ -344,7 +365,6 @@ export async function createBid(input: CreateBidInput) {
       );
     }
 
-    // Para gold/platinum: solo requerir que supere el best (o >= base si no hay pujas)
     if (minBidAllowed === null) {
       const threshold = currentBest !== null ? currentBest : item.basePrice;
       if (input.amount <= threshold - 0.001) {
@@ -359,7 +379,6 @@ export async function createBid(input: CreateBidInput) {
 
     // 7. Insertar puja, marcar ganador, crear evento, incrementar versión
 
-    // Desmarcar puja ganadora anterior
     await tx.bid.updateMany({
       where: { itemId: input.itemId, winner: true },
       data: { winner: false },
@@ -377,7 +396,6 @@ export async function createBid(input: CreateBidInput) {
       },
     });
 
-    // Crear AuctionEvent(new_bid)
     await tx.auctionEvent.create({
       data: {
         auctionId,
@@ -393,7 +411,6 @@ export async function createBid(input: CreateBidInput) {
       },
     });
 
-    // Incrementar auction.version
     await tx.auction.update({
       where: { id: auctionId },
       data: { version: { increment: 1 } },

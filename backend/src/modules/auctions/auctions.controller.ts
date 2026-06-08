@@ -3,7 +3,7 @@
  * Traduce requests HTTP → service → response.
  * Sin lógica de negocio aquí — solo orquestación.
  *
- * Ver docs/features/F04-auction-session-live.md
+ * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
  */
 
 import { Request, Response, NextFunction } from "express";
@@ -45,6 +45,53 @@ export async function getAuction(
   }
 }
 
+// ── POST /auctions (admin) ────────────────────────────────────────────────────
+
+export async function createAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await auctionsService.createAuction(req.body);
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── PATCH /auctions/:id (admin) ───────────────────────────────────────────────
+
+export async function updateAuction(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as unknown as number;
+    const result = await auctionsService.updateAuction(id, req.body);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /auctions/:id/catalog ─────────────────────────────────────────────────
+
+export async function getAuctionCatalog(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const id = req.params.id as unknown as number;
+    const result = await auctionsService.getAuctionCatalog(id, !!req.auth);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── GET /auctions/:id/streaming ───────────────────────────────────────────────
 
 export async function getStreaming(
@@ -76,7 +123,6 @@ export async function registerAttendee(
   try {
     const auctionId = req.params.id as unknown as number;
     const isAdmin = req.auth!.roles.includes("ADMIN");
-    // Admin puede especificar un clientId diferente; de lo contrario se usa el del token
     const clientId =
       isAdmin && req.body.clientId ? req.body.clientId : req.auth!.sub;
 
