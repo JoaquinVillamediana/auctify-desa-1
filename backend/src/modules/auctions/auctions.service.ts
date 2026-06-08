@@ -312,6 +312,12 @@ export async function connectToAuction(auctionId: number, clientId: number) {
     where: { clientId, active: true },
   });
   if (activeSession) {
+    // Idempotente: si ya estás conectado a ESTA subasta, devolvemos la sesión existente
+    // (re-entrar a la misma subasta no es un error).
+    if (activeSession.auctionId === auctionId) {
+      return activeSession;
+    }
+    // 409 solo si la sesión activa es de OTRA subasta (no se puede estar en dos a la vez).
     throw new AppError(
       ErrorCode.ALREADY_CONNECTED,
       409,
