@@ -7,7 +7,6 @@
 import { Request, Response, NextFunction } from "express";
 import path from "path";
 import * as authService from "./auth.service";
-import { env } from "../../config/env";
 
 /**
  * POST /auth/register (multipart/form-data)

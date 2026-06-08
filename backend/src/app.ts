@@ -39,6 +39,42 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Security headers (sin dependencias — helmet no instalable en este entorno) ─
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-XSS-Protection", "0");
+  next();
+});
+
+// ── Rate limiting in-memory (sin dependencias — express-rate-limit no instalable) ─
+function rateLimit(opts: { windowMs: number; max: number }) {
+  const hits = new Map<string, { count: number; reset: number }>();
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const key = req.ip ?? "unknown";
+    const now = Date.now();
+    const rec = hits.get(key);
+    if (!rec || now > rec.reset) {
+      hits.set(key, { count: 1, reset: now + opts.windowMs });
+      return next();
+    }
+    rec.count += 1;
+    if (rec.count > opts.max) {
+      res.status(429).json({
+        code: "RATE_LIMITED",
+        message: "Demasiadas solicitudes. Probá de nuevo en unos minutos.",
+      });
+      return;
+    }
+    next();
+  };
+}
+if (env.NODE_ENV !== "test") {
+  app.use(rateLimit({ windowMs: 60_000, max: 2000 })); // global
+  app.use("/v1/auth", rateLimit({ windowMs: 60_000, max: 300 })); // anti brute-force en login/registro
+}
+
 // ── Logging ───────────────────────────────────────────────────────────────────
 if (env.NODE_ENV !== "test") {
   app.use(morgan("dev"));
