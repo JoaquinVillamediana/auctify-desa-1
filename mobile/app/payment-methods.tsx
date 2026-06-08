@@ -11,7 +11,6 @@
  * Acciones disponibles:
  *   - Agregar medio de pago (formulario inline inferior)
  *   - Eliminar un medio propio (confirmación via Alert)
- *   - (Dev) Verificar un medio pendiente sin admin real
  *
  * Accesible desde el perfil via router.push('/payment-methods').
  */
@@ -19,7 +18,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -28,7 +26,6 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { get, post, del, ApiError } from '@/api/client';
 import { AppBar } from '@/components/AppBar';
-import { useAuth } from '@/auth/AuthContext';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorView } from '@/components/ErrorView';
@@ -128,16 +125,12 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
 interface PaymentCardProps {
   method: PaymentMethod;
   onDelete: (id: number) => void;
-  onVerifyDev?: (id: number) => void;
-  isDev: boolean;
 }
 
 /**
  * Tarjeta de un medio de pago con información, badge de estado y acciones.
- * El botón "Verificar [DEV]" solo aparece en entorno de desarrollo
- * para métodos con status "pending".
  */
-function PaymentCard({ method, onDelete, onVerifyDev, isDev }: PaymentCardProps) {
+function PaymentCard({ method, onDelete }: PaymentCardProps) {
   const handleDelete = () => {
     // Confirmación antes de borrar — ver F02 §Baja de medio de pago
     Alert.alert(
@@ -184,14 +177,6 @@ function PaymentCard({ method, onDelete, onVerifyDev, isDev }: PaymentCardProps)
       {/* Acciones */}
       <View style={styles.cardActions}>
         <Button title="Eliminar" variant="ghost" onPress={handleDelete} style={styles.deleteBtn} />
-        {isDev && method.status === 'pending' && onVerifyDev ? (
-          <Button
-            title="Verificar [DEV]"
-            variant="outline"
-            onPress={() => onVerifyDev(method.id)}
-            style={styles.devBtn}
-          />
-        ) : null}
       </View>
     </View>
   );
@@ -218,11 +203,6 @@ export default function PaymentMethodsScreen() {
   const [formReservedAmount, setFormReservedAmount] = useState('');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
-
-  const { user } = useAuth();
-
-  // En entorno de desarrollo se muestra el botón "Verificar [DEV]"
-  const isDev = process.env.NODE_ENV !== 'production';
 
   // ── Carga la lista de medios ──
 
@@ -265,23 +245,6 @@ export default function PaymentMethodsScreen() {
     },
     []
   );
-
-  // ── Verificar (dev) ──
-
-  const handleVerifyDev = useCallback(async (id: number) => {
-    try {
-      const updated = await post<PaymentMethod>(
-        `/payment-methods/${id}/verify`,
-        { status: 'verified' }
-      );
-      // Actualización inmutable: reemplaza el método actualizado
-      setMethods((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : 'No se pudo verificar el medio.';
-      Alert.alert('Error (dev)', message);
-    }
-  }, []);
 
   // ── Validación local del formulario ──
 
@@ -407,8 +370,6 @@ export default function PaymentMethodsScreen() {
             key={method.id}
             method={method}
             onDelete={handleDelete}
-            onVerifyDev={isDev ? handleVerifyDev : undefined}
-            isDev={isDev}
           />
         ))}
 
@@ -611,11 +572,6 @@ const styles = StyleSheet.create({
   deleteBtn: {
     minHeight: 0,
     paddingVertical: spacing.xs,
-  },
-  devBtn: {
-    minHeight: 0,
-    paddingVertical: spacing.xs,
-    borderColor: colors.feedback.warning,
   },
 
   // Badge de estado
