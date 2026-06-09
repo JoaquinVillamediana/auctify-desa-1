@@ -1,6 +1,5 @@
 /**
  * Servicio de medios de pago — lógica de negocio.
- * Ver docs/features/F02-payment-methods.md
  *
  * listByClient  — lista los medios del cliente del token
  * create        — crea un medio con status "pending"

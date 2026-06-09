@@ -1,6 +1,5 @@
 /**
  * Schemas zod de validación del módulo auth.
- * Ver docs/features/F01-auth.md — sección "Validaciones y errores"
  */
 
 import { z } from "zod";

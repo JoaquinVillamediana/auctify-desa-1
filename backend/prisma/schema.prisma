@@ -1,4 +1,4 @@
-// Fuente de verdad del modelo de datos. Ver docs/02-data-model.md.
+// Fuente de verdad del modelo de datos.
 //
 // NOTA SQLite: SQLite no soporta Prisma `enum` ni tipo Json nativo.
 // Los campos enum se modelan como String con comentarios listando valores permitidos.

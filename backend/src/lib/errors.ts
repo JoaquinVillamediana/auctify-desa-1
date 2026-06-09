@@ -1,6 +1,5 @@
 /**
  * Códigos de error y clase AppError.
- * Ver docs/04-error-handling.md — el enum ErrorCode DEBE coincidir exactamente.
  */
 
 /** Catálogo de códigos de error. Stable — el front los consume para decidir UX. */

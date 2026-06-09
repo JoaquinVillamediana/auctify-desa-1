@@ -57,7 +57,6 @@ export default function AuctionCatalogScreen() {
         rightAction={<Text style={styles.headerMeta}>{items.length} piezas</Text>}
       />
 
-      {/* 2-column grid */}
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -73,7 +72,6 @@ export default function AuctionCatalogScreen() {
             onPress={() => router.push(`/item/${item.id}`)}
             activeOpacity={0.75}
           >
-            {/* Image placeholder */}
             <View style={[styles.imgBox, item.status === 'active' && styles.imgBoxLive]}>
               <Text style={styles.imgLotText}>#{item.lotNumber}</Text>
               {item.status === 'active' && (

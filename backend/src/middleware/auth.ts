@@ -1,6 +1,5 @@
 /**
  * Middlewares de autenticación y autorización.
- * Ver docs/03-auth-and-roles.md §4
  *
  * Middlewares:
  *   - requireAuth          → 401 si el token falta o es inválido

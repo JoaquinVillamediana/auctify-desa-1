@@ -168,7 +168,7 @@ export async function paySaleRecord(
   if (!saleRecord) throw notFound("Registro de venta");
 
   // Guard: una compra ya pagada no puede volver a pagarse (evita doble cobro
-  // y reprocesos). Ver docs/features/F07-payments.md.
+  // y reprocesos).
   if (saleRecord.paymentStatus === "paid") {
     throw new AppError(ErrorCode.VALIDATION_ERROR, 422, "La compra ya fue pagada");
   }

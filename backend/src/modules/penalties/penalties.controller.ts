@@ -3,7 +3,6 @@
  * Traduce requests HTTP → service → response.
  * Sin lógica de negocio aquí — solo orquestación.
  *
- * Ver docs/features/F10-penalties.md
  */
 
 import { Request, Response, NextFunction } from "express";
@@ -46,7 +45,7 @@ export async function listMine(
   next: NextFunction
 ): Promise<void> {
   try {
-    // El clientId viene del JWT; nunca del body ni query (ver docs/03-auth-and-roles.md §2)
+    // El clientId viene del JWT; nunca del body ni query
     const clientId = req.auth!.sub;
     const penalties = await penaltiesService.listByClient(clientId);
 

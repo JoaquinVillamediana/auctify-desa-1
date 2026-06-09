@@ -107,8 +107,7 @@ backend/
 1. Crear `src/modules/<nombre>/` con: `<nombre>.schema.ts`, `<nombre>.service.ts`, `<nombre>.controller.ts`, `<nombre>.routes.ts`.
 2. Montar el router en `src/routes/index.ts` (hay placeholders comentados).
 3. Ver el módulo `auth` como referencia de estructura.
-4. Ver el feature doc correspondiente en `docs/features/Fxx-*.md` para las reglas de negocio.
-5. Escribir tests en `tests/<nombre>.test.ts`.
+4. Escribir tests en `tests/<nombre>.test.ts`.
 
 ## Build para producción
 

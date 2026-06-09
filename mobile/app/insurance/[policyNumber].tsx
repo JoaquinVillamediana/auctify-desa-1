@@ -93,18 +93,15 @@ export default function InsuranceScreen() {
     <View style={styles.screen}>
       <AppBar title="Custodia de mi pieza" />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Map / location placeholder */}
       <View style={styles.mapPlaceholder}>
-        <Text style={styles.mapText}>mapa depósito</Text>
+        <Text style={styles.mapText}>Depósito</Text>
       </View>
 
-      {/* Location box */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Ubicación</Text>
-        <Text style={styles.locationName}>Auctify Dep.</Text>
+        <Text style={styles.locationName}>Depósito Auctify</Text>
       </View>
 
-      {/* Policy box */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Póliza de seguro</Text>
 
@@ -128,11 +125,10 @@ export default function InsuranceScreen() {
         )}
       </View>
 
-      {/* Ampliar cobertura */}
       {!showCoverageForm ? (
         <View style={styles.actionRow}>
           <Button
-            title="Ampliar cobertura ↗"
+            title="Ampliar cobertura"
             variant="outline"
             onPress={() => setShowCoverageForm(true)}
           />

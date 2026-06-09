@@ -1,6 +1,5 @@
 /**
  * Schemas zod de validación del módulo penalties.
- * Ver docs/features/F10-penalties.md — sección "Validaciones y errores"
  */
 
 import { z } from "zod";

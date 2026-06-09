@@ -1,6 +1,5 @@
 /**
  * Schemas zod de validación del módulo auctions.
- * Ver docs/features/F04-auction-session-live.md
  */
 
 import { z } from "zod";

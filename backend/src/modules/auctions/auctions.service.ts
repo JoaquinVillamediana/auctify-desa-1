@@ -1,6 +1,5 @@
 /**
  * Servicio de subastas, catálogo y sesiones en vivo.
- * Ver docs/features/F03-auctions.md, F04-auction-session-live.md y F05-bidding.md
  *
  * Exporta computeRange() para reutilizarlo en items/bids.
  */

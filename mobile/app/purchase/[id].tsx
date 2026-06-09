@@ -138,14 +138,12 @@ export default function PurchaseDetailScreen() {
     <View style={styles.screen}>
       <AppBar title={`Factura #${purchase.id}`} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Payment status banner */}
       <View style={[styles.statusBanner, isPaid ? styles.bannerPaid : isFailed ? styles.bannerFailed : styles.bannerPending]}>
         <Text style={styles.statusText}>
-          {isPaid ? '✓ Pagado' : isFailed ? '✕ Pago fallido' : '⏳ Pendiente de pago'}
+          {isPaid ? 'Pagado' : isFailed ? 'Pago fallido' : 'Pendiente de pago'}
         </Text>
       </View>
 
-      {/* Pieza info */}
       {purchase.product?.catalogDescription && (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Pieza</Text>
@@ -153,7 +151,6 @@ export default function PurchaseDetailScreen() {
         </View>
       )}
 
-      {/* Desglose */}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>Desglose</Text>
         <View style={styles.row}>
@@ -177,7 +174,6 @@ export default function PurchaseDetailScreen() {
         </View>
       </View>
 
-      {/* Delivery — only when pending */}
       {isPending && (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Modalidad de entrega</Text>
@@ -211,7 +207,7 @@ export default function PurchaseDetailScreen() {
             <View style={styles.optionBody}>
               <Text style={styles.optionTitle}>Retiro en depósito</Text>
               <Text style={[styles.optionSub, styles.optionSubWarning]}>
-                ⚠ pierde cobertura del seguro al retirar
+                Pierde cobertura del seguro al retirar
               </Text>
             </View>
           </TouchableOpacity>
@@ -226,7 +222,6 @@ export default function PurchaseDetailScreen() {
         </View>
       )}
 
-      {/* Payment method — only when pending */}
       {isPending && (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Medio de pago</Text>

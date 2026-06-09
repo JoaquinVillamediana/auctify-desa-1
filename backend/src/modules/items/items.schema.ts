@@ -1,6 +1,5 @@
 /**
  * Schemas zod de validación del módulo items/bids.
- * Ver docs/features/F05-bidding.md
  */
 
 import { z } from "zod";

@@ -3,7 +3,7 @@
  * Accesible via router.push('/penalties') desde el perfil, el banner de cuenta
  * bloqueada o desde una notificación de tipo 'penalty' (F09).
  *
- * TODO → docs/features/F10-penalties.md
+ * TODO
  *
  * Flujo:
  *  - Carga la lista de multas del cliente autenticado (GET /me/penalties).

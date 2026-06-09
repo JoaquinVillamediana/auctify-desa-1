@@ -1,6 +1,5 @@
 /**
  * Servicio de solicitudes de inclusión (F06).
- * Ver docs/features/F06-inclusion-requests.md
  */
 
 import { prisma } from "../../lib/prisma";

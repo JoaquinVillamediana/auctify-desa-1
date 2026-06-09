@@ -24,9 +24,6 @@ import { colors, typography, spacing, radius } from '@/theme';
 import type { AuctionLiveStatus, PaymentMethod } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
-// ── Tipos del panel de remate ────────────────────────────────────────────────
-
-/** Ítem del catálogo devuelto por GET /auctions/:id/catalog */
 interface AdminCatalogItem {
   id: number;
   lotNumber: number;
@@ -44,7 +41,6 @@ interface AdminCatalogResponse {
   items?: AdminCatalogItem[];
 }
 
-/** Respuesta de POST /auctions/:id/items/:itemId/close */
 interface CloseItemResult {
   sold: boolean;
   winnerBidderNumber?: number | null;
@@ -52,29 +48,12 @@ interface CloseItemResult {
   message?: string | null;
 }
 
-// ── Tipos internos ───────────────────────────────────────────────────────────
-
 type ConnectState =
-  | 'idle'           // aún no intentamos conectar
-  | 'connecting'     // POST /connect en curso
-  | 'connected'      // sesión activa
-  | 'error';         // falló la conexión y no hay sesión
+  | 'idle'
+  | 'connecting'
+  | 'connected'
+  | 'error';
 
-/**
- * Pantalla de subasta en vivo — F04 (sesión) + F05 (pujar).
- *
- * Flujo completo:
- *   1. Al montar: POST /auctions/:id/connect
- *      - 409 ALREADY_CONNECTED → Alert con opción de desconectar la otra sesión
- *      - 403 → mostrar motivo sin pantalla de puja
- *   2. Polling de GET /auctions/:id/live-status cada 2.5 s (solo si connected)
- *      - Re-render solo si version cambia (ADR-002)
- *   3. Carga medios de pago verificados vía GET /me/payment-methods
- *   4. Caja de puja con validación local de rango + Idempotency-Key
- *   5. Al desmontar: best-effort POST /auctions/:id/disconnect
- *
- * Ver docs/features/F04-auction-session-live.md y F05-bidding.md
- */
 export default function AuctionLiveScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -701,7 +680,6 @@ export default function AuctionLiveScreen() {
           />
         </View>
       ) : connectState === 'connected' && paymentMethods.length === 0 ? (
-        // Sin medios de pago verificados — modo solo lectura
         <View style={styles.noBidBanner}>
           <Text style={styles.noBidText}>
             Necesitás un medio de pago verificado para pujar. Agregalo desde tu perfil.
@@ -713,23 +691,20 @@ export default function AuctionLiveScreen() {
         </View>
       ) : null}
 
-      {/* ── Panel de remate (solo administradores, categoría platinum) ── */}
       {isAdmin && (
         <View style={styles.adminPanel}>
-          {/* Cabecera colapsable */}
           <TouchableOpacity
             style={styles.adminPanelHeader}
             onPress={handleTogglePanel}
             accessibilityRole="button"
             accessibilityLabel={panelExpanded ? 'Colapsar panel de remate' : 'Expandir panel de remate'}
           >
-            <Text style={styles.adminPanelTitle}>🔨 Panel de remate</Text>
+            <Text style={styles.adminPanelTitle}>Panel de remate</Text>
             <Text style={styles.adminPanelChevron}>{panelExpanded ? '▲' : '▼'}</Text>
           </TouchableOpacity>
 
           {panelExpanded && (
             <View style={styles.adminPanelBody}>
-              {/* Botón recargar catálogo */}
               <Button
                 title={catalogLoading ? 'Cargando…' : 'Recargar catálogo'}
                 variant="outline"
@@ -738,14 +713,12 @@ export default function AuctionLiveScreen() {
                 style={styles.adminReloadBtn}
               />
 
-              {/* Error al cargar catálogo */}
               {catalogError !== null && (
                 <View style={styles.adminErrorBanner}>
                   <Text style={styles.adminErrorText}>{catalogError}</Text>
                 </View>
               )}
 
-              {/* Lista de ítems del catálogo */}
               {catalog.length === 0 && !catalogLoading && !catalogError && (
                 <Text style={styles.adminEmptyText}>Sin ítems en el catálogo.</Text>
               )}
@@ -763,7 +736,6 @@ export default function AuctionLiveScreen() {
 
                 return (
                   <View key={catItem.id} style={styles.adminItemRow}>
-                    {/* Info del ítem */}
                     <View style={styles.adminItemInfo}>
                       <Text style={styles.adminItemLot}>Lote #{catItem.lotNumber}</Text>
                       <Text style={styles.adminItemDesc} numberOfLines={2}>
@@ -788,7 +760,6 @@ export default function AuctionLiveScreen() {
                       </View>
                     </View>
 
-                    {/* Acciones según estado */}
                     <View style={styles.adminItemActions}>
                       {isPending && (
                         <Button
@@ -813,7 +784,6 @@ export default function AuctionLiveScreen() {
                 );
               })}
 
-              {/* Cerrar subasta completa */}
               <View style={styles.adminDivider} />
               <Button
                 title={closingAuction ? 'Cerrando subasta…' : 'Cerrar subasta'}

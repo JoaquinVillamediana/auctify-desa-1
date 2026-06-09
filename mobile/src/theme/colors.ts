@@ -2,8 +2,6 @@
  * Paleta de colores de Auctify.
  *
  * ✅ Tokens EXTRAÍDOS DEL FIGMA `Auctify - DA1` (pantalla "High-Fidelity: Home", node 35:1431).
- * Trazabilidad de diseño: ver `docs/08-design-system.md`.
- *
  * Identidad: azul profundo de marca (#1e3a8a) + acento marrón cálido (martillo/madera de
  * remate) + neutros slate. Verde para "en vivo/termina pronto", rojo para "VIVO".
  */

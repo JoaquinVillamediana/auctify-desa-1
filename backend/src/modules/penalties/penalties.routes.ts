@@ -12,8 +12,6 @@
  *   GET    /clients/:id/penalties       → multas de un cliente (solo ADMIN)
  *   POST   /penalties/:id/pay           → pagar multa (dueño o admin)
  *
- * Ver docs/features/F10-penalties.md
- * Ver docs/03-auth-and-roles.md §3 (matriz de roles)
  */
 
 import { Router } from "express";

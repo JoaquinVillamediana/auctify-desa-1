@@ -20,7 +20,6 @@ import * as clientsController from "./clients.controller";
 
 const router = Router();
 
-// Categorías válidas — ver docs/02-data-model.md §1
 const CATEGORIES = ["common", "special", "silver", "gold", "platinum"] as const;
 
 const admitClientSchema = z.object({

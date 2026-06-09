@@ -1,6 +1,6 @@
 /**
  * Pantalla de medios de pago — F02 Medios de pago
- * TODO → docs/features/F02-payment-methods.md
+ * TODO
  *
  * Estados de la pantalla:
  *   loading  → muestra <Loading>

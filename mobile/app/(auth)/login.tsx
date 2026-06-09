@@ -11,7 +11,7 @@ import type { ApiError } from '@/api/client';
 
 /**
  * Pantalla de login (F01).
- * Autenticación por **email** + contraseña (decisión D3 — ver docs/09-design-gaps.md).
+ * Autenticación por **email** + contraseña (decisión D3 —.
  * Maneja: 401 credenciales inválidas, 403 NOT_ADMITTED / CLIENT_BLOCKED.
  */
 export default function LoginScreen() {

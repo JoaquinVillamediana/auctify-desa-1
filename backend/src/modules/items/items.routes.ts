@@ -9,7 +9,6 @@
  * GET  /items/:id/bids     — historial de pujas (requireAuth)
  * POST /items/:id/bids     — crear puja (requireAuth; header Idempotency-Key)
  *
- * Ver docs/features/F03-auctions.md y docs/features/F05-bidding.md
  */
 
 import { Router } from "express";

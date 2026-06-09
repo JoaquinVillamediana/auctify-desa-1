@@ -5,7 +5,6 @@
  * Para agregar un nuevo módulo:
  *   1. Crear src/modules/<nombre>/<nombre>.routes.ts
  *   2. Importarlo aquí y montarlo con router.use(...)
- *   3. Ver el feature doc correspondiente en docs/features/Fxx-*.md
  */
 
 import { Router } from "express";

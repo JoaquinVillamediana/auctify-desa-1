@@ -7,7 +7,7 @@ import { colors, typography, spacing } from '@/theme';
 /**
  * Banner global que aparece cuando no hay conexión a internet.
  * Se monta una sola vez en el root layout y se superpone sobre cualquier pantalla.
- * (Manejo de errores de conexión exigido por la Entrega 2 — ver docs/04-error-handling.md.)
+ * (Manejo de errores de conexión exigido por la Entrega 2 —
  */
 export function OfflineBanner() {
   const insets = useSafeAreaInsets();

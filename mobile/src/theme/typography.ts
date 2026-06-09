@@ -4,7 +4,7 @@ import { Platform, type TextStyle } from 'react-native';
  * Tipografía de Auctify.
  *
  * ✅ EXTRAÍDA DEL FIGMA `Auctify - DA1`: **Manrope** (ExtraBold) para títulos +
- * **Inter** para cuerpo/UI + monoespaciada para timers. Ver `docs/08-design-system.md`.
+ * **Inter** para cuerpo/UI + monoespaciada para timers.
  *
  * Las familias se cargan en `app/_layout.tsx` con `@expo-google-fonts/*`.
  * Criterio de legibilidad (corrección E1 "letra muy chica"): el cuerpo es 16; los micro-labels

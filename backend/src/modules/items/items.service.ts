@@ -1,6 +1,5 @@
 /**
  * Servicio de ítems y pujas.
- * Ver docs/features/F03-auctions.md, F05-bidding.md y ADR-002-realtime-polling.md
  *
  * La lógica de concurrencia usa una transacción + recompute del bestBid
  * dentro de la transacción para serializar las pujas (BEGIN IMMEDIATE en SQLite).

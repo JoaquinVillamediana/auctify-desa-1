@@ -1,6 +1,5 @@
 /**
  * Servicio del módulo products.
- * Ver docs/features/F06-inclusion-requests.md
  */
 
 import { prisma } from "../../lib/prisma";

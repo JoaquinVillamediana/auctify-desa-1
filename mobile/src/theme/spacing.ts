@@ -2,7 +2,7 @@
  * Escala de espaciado y radios de Auctify.
  *
  * ✅ EXTRAÍDA DEL FIGMA `Auctify - DA1`: spacing en múltiplos de 4 (4/8/16/24/32/40) y
- * radios 12/16/24/32/40 + pill. Ver `docs/08-design-system.md`.
+ * radios 12/16/24/32/40 + pill.
  */
 export const spacing = {
   xs: 4,

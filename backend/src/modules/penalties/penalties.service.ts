@@ -1,6 +1,5 @@
 /**
  * Servicio de multas — lógica de negocio.
- * Ver docs/features/F10-penalties.md
  *
  * create        — crea Penalty status=pending y bloquea al cliente
  * listByClient  — lista las multas de un cliente (historial completo)

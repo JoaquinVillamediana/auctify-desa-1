@@ -18,7 +18,6 @@
  * POST /auctions/:id/items/:itemId/close   — adjudicar ítem (ADMIN)
  * POST /auctions/:id/close                 — cerrar subasta (ADMIN)
  *
- * Ver docs/features/F03-auctions.md, F04-auction-session-live.md y F04-running.md
  */
 
 import { Router } from "express";

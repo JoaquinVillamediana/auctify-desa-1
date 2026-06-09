@@ -59,8 +59,6 @@ export default function NewItemScreen() {
 
   return (
     <ScreenContainer scrollable header={<AppBar title="Nuevo artículo" />}>
-      <Text style={styles.subtitle}>Paso 1 de 3 — Datos del bien</Text>
-
       {errors.general ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{errors.general}</Text>
@@ -117,7 +115,7 @@ export default function NewItemScreen() {
       />
 
       <Button
-        title="Siguiente — Cargar fotos"
+        title="Cargar fotos"
         onPress={handleNext}
         loading={loading}
         style={styles.button}
@@ -127,7 +125,6 @@ export default function NewItemScreen() {
 }
 
 const styles = StyleSheet.create({
-  subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.lg },
   errorBanner: {
     backgroundColor: colors.feedback.errorBackground,
     borderRadius: 8,

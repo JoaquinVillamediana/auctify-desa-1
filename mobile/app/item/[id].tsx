@@ -62,16 +62,14 @@ export default function ItemDetailScreen() {
     <View style={styles.screen}>
       <AppBar title={`Pieza #${item.lotNumber}`} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Main photo */}
       {photos.length > 0 ? (
         <Image source={{ uri: photos[0] }} style={styles.mainPhoto} resizeMode="cover" />
       ) : (
         <View style={styles.mainPhotoPlaceholder}>
-          <Text style={styles.placeholderText}>foto principal</Text>
+          <Text style={styles.placeholderText}>Sin foto</Text>
         </View>
       )}
 
-      {/* Thumbnail row */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -89,7 +87,6 @@ export default function ItemDetailScreen() {
             ))}
       </ScrollView>
 
-      {/* Title block */}
       <View style={styles.titleBlock}>
         {isActive && (
           <View style={styles.livePill}>

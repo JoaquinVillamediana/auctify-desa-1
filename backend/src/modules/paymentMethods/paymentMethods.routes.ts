@@ -12,8 +12,6 @@
  *   DELETE /payment-methods/:id          → baja (solo el dueño del medio)
  *   POST   /payment-methods/:id/verify   → verificar/rechazar (ADMIN; dev: sin rol)
  *
- * Ver docs/features/F02-payment-methods.md
- * Ver docs/03-auth-and-roles.md §3 (matriz de roles)
  */
 
 import { Router } from "express";

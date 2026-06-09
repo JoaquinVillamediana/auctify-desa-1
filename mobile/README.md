@@ -69,7 +69,7 @@ mobile/
 │   ├── hooks/
 │   │   └── usePolling.ts    # Hook de polling para live-status
 │   └── theme/
-│       ├── colors.ts        # Paleta Auctify (PLACEHOLDER — sync con Figma)
+│       ├── colors.ts        # Paleta Auctify
 │       ├── typography.ts    # Escala tipografica legible (body >= 15-16)
 │       └── index.ts
 └── assets/
@@ -89,13 +89,3 @@ Los archivos en `src/theme/` contienen valores **placeholder** claramente marcad
 Las pantallas de alta fidelidad de la Entrega 1 fueron corregidas por exceso de contenido
 y riesgo de fuentes pequenas. Por ello, **el tema impone un minimo de 15px para cuerpo de
 texto y jamas baja de 13px** en ningun elemento. Ver `src/theme/typography.ts`.
-
-## Features documentadas
-
-| Feature | Archivo docs |
-|---------|-------------|
-| Auth (login / registro / activacion) | `docs/features/F01-auth.md` |
-| Pujas en vivo | `docs/features/F05-bidding.md` |
-| Inclusion de bienes | `docs/features/F06-inclusion-requests.md` |
-| Metricas | `docs/features/F08-metrics.md` |
-| Notificaciones | `docs/features/F09-notifications.md` |

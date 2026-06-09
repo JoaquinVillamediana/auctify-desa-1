@@ -3,7 +3,6 @@
  * Convierte AppError, ZodError y errores desconocidos al envelope estándar:
  *   { code, message, details }
  *
- * Ver docs/04-error-handling.md §1
  */
 
 import { Request, Response, NextFunction } from "express";

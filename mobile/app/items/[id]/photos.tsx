@@ -60,8 +60,6 @@ export default function PhotosScreen() {
 
   return (
     <ScreenContainer header={<AppBar title="Fotos del artículo" />}>
-      <Text style={styles.subtitle}>Paso 2 de 3 — Cargá al menos 6 fotos</Text>
-
       <View style={styles.counter}>
         <Text style={[styles.counterText, ready && styles.counterReady]}>
           {photos.length}/{MIN_PHOTOS} fotos {ready ? '✓' : 'mínimas'}
@@ -95,7 +93,7 @@ export default function PhotosScreen() {
       />
 
       <Button
-        title="Siguiente — Declaraciones"
+        title="Continuar"
         onPress={handleContinue}
         disabled={!ready}
         style={styles.button}
@@ -107,7 +105,6 @@ export default function PhotosScreen() {
 const THUMB_SIZE = 100;
 
 const styles = StyleSheet.create({
-  subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.md },
   counter: { marginBottom: spacing.md },
   counterText: { ...typography.label, color: colors.text.secondary },
   counterReady: { color: colors.feedback.success },

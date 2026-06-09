@@ -24,8 +24,7 @@ interface UsePollingResult<T> {
 }
 
 /**
- * Polling genérico con cadencia fija. Decisión documentada en
- * docs/decisions/ADR-002-realtime-polling.md.
+ * Polling genérico con cadencia fija.
  *
  * - Se pausa automáticamente si la app pasa a background o se queda sin conexión.
  * - Solo actualiza el estado cuando `hasChanged` lo indica (evita re-render y datos viejos).

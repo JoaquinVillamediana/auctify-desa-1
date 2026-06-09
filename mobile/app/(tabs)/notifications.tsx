@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 import { get, post } from '@/api/client';
 import { AppBar } from '@/components/AppBar';
 import { Loading } from '@/components/Loading';
@@ -17,18 +18,14 @@ import { colors, typography, spacing, radius, shadows } from '@/theme';
 import type { Notification, NotificationType } from '@/api/types';
 import type { ApiError } from '@/api/client';
 
-// ── Configuración por tipo ──────────────────────────────────────────────────
-
 const TYPE_META: Record<NotificationType, { icon: string; color: string }> = {
-  admission:         { icon: '✅', color: colors.feedback.success },
-  auction_winner:    { icon: '🏆', color: '#F59E0B' },
-  inclusion_proposal:{ icon: '📋', color: colors.brand.primary },
-  penalty:           { icon: '⚠️', color: colors.feedback.warning },
-  item_rejected:     { icon: '❌', color: colors.feedback.error },
-  info:              { icon: 'ℹ️', color: colors.text.secondary },
+  admission:         { icon: 'check-circle', color: colors.feedback.success },
+  auction_winner:    { icon: 'award', color: '#F59E0B' },
+  inclusion_proposal:{ icon: 'clipboard', color: colors.brand.primary },
+  penalty:           { icon: 'alert-triangle', color: colors.feedback.warning },
+  item_rejected:     { icon: 'x-circle', color: colors.feedback.error },
+  info:              { icon: 'info', color: colors.text.secondary },
 };
-
-// ── Helper de fecha relativa ────────────────────────────────────────────────
 
 function relativeDate(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -42,14 +39,10 @@ function relativeDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 
-// ── Tipos ───────────────────────────────────────────────────────────────────
-
 interface NotificationsResponse {
   items: Notification[];
   unreadCount: number;
 }
-
-// ── Screen ──────────────────────────────────────────────────────────────────
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -141,12 +134,10 @@ export default function NotificationsScreen() {
               onPress={() => handleTap(item)}
               activeOpacity={0.75}
             >
-              {/* Ícono de tipo */}
               <View style={[styles.iconWrap, { backgroundColor: meta.color + '18' }]}>
-                <Text style={styles.icon}>{meta.icon}</Text>
+                <Feather name={meta.icon as any} size={22} color={meta.color} />
               </View>
 
-              {/* Contenido */}
               <View style={styles.body}>
                 <View style={styles.topRow}>
                   <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
@@ -154,7 +145,6 @@ export default function NotificationsScreen() {
                 </View>
                 <Text style={styles.message} numberOfLines={2}>{item.message}</Text>
 
-                {/* Badge de tipo */}
                 <View style={[styles.typeBadge, { borderColor: meta.color }]}>
                   <Text style={[styles.typeBadgeText, { color: meta.color }]}>
                     {item.type.replace('_', ' ').toUpperCase()}
@@ -162,7 +152,6 @@ export default function NotificationsScreen() {
                 </View>
               </View>
 
-              {/* Indicador no leída */}
               {!item.read && <View style={styles.dot} />}
             </TouchableOpacity>
           );
@@ -172,8 +161,6 @@ export default function NotificationsScreen() {
     </View>
   );
 }
-
-// ── Estilos ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background.primary },
@@ -220,8 +207,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.sm,
   },
-  icon: { fontSize: 22 },
-
   body: { flex: 1 },
   topRow: {
     flexDirection: 'row',

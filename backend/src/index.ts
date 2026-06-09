@@ -11,7 +11,7 @@ import { env } from "./config/env";
 const PORT = env.PORT;
 
 const server = app.listen(PORT, () => {
-  console.log(`\n🏛️  Auctify Backend`);
+  console.log(`\nAuctify Backend`);
   console.log(`   Entorno : ${env.NODE_ENV}`);
   console.log(`   Puerto  : ${PORT}`);
   console.log(`   Base URL: http://localhost:${PORT}/v1`);

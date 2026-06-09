@@ -1,6 +1,5 @@
 /**
  * Schemas zod de validación del módulo paymentMethods.
- * Ver docs/features/F02-payment-methods.md — sección "Validaciones y errores"
  *
  * createSchema  — body de POST /me/payment-methods
  * verifySchema  — body de POST /payment-methods/:id/verify  (solo ADMIN)

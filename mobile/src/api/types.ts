@@ -2,7 +2,6 @@
  * Tipos TypeScript para los schemas MVP del OpenAPI de Auctify.
  * Basados en auctify-openapi.yaml — solo se tipan los schemas relevantes al MVP.
  *
- * Ref: docs/features/F01-auth.md, F05-bidding.md
  */
 
 // ─────────────── ErrorCode ───────────────

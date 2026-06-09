@@ -21,11 +21,6 @@ type InclusionRequestWithProduct = InclusionRequest & {
   };
 };
 
-/**
- * Tab "Vender" (decisión: el wireframe de Vendedor ocupa el 3er tab; "Mis pujas" pasó al drawer).
- * Stat cards (En curso / Aceptadas / Total) + lista de piezas (solicitudes de inclusión) +
- * CTA fijo "Proponer nueva pieza". Estilo de la app aplicado al layout del wireframe.
- */
 export default function VenderScreen() {
   const router = useRouter();
   const [requests, setRequests] = useState<InclusionRequestWithProduct[]>([]);
@@ -63,7 +58,7 @@ export default function VenderScreen() {
           <Image source={{ uri: thumb }} style={styles.thumb} />
         ) : (
           <View style={[styles.thumb, styles.thumbPlaceholder]}>
-            <Text style={styles.thumbIcon}>🖼</Text>
+            <Text style={styles.thumbText}>Sin foto</Text>
           </View>
         )}
 
@@ -124,7 +119,6 @@ export default function VenderScreen() {
         />
       )}
 
-      {/* CTA fijo arriba del tab bar */}
       <View style={styles.ctaBar}>
         <Button title="+ Proponer nueva pieza" onPress={() => router.push('/items/new')} />
       </View>
@@ -157,7 +151,7 @@ const styles = StyleSheet.create({
   },
   thumb: { width: 72, height: 72 },
   thumbPlaceholder: { backgroundColor: colors.background.secondary, alignItems: 'center', justifyContent: 'center' },
-  thumbIcon: { fontSize: 24 },
+  thumbText: { ...typography.caption, color: colors.text.tertiary },
   cardBody: { flex: 1, padding: spacing.sm, gap: 4 },
   cardTitle: { ...typography.label, color: colors.text.primary },
   badge: {

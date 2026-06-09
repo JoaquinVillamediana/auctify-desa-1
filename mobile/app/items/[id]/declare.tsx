@@ -61,8 +61,6 @@ export default function DeclareScreen() {
 
   return (
     <ScreenContainer scrollable header={<AppBar title="Declaraciones" />}>
-      <Text style={styles.subtitle}>Paso 3 de 3 — Leé y aceptá antes de enviar</Text>
-
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorBannerText}>{error}</Text>
@@ -117,7 +115,6 @@ export default function DeclareScreen() {
 }
 
 const styles = StyleSheet.create({
-  subtitle: { ...typography.bodySmall, color: colors.text.secondary, marginBottom: spacing.lg },
   errorBanner: {
     backgroundColor: colors.feedback.errorBackground,
     borderRadius: 8,

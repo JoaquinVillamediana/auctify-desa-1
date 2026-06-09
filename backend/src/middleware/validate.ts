@@ -3,7 +3,6 @@
  * Valida body, query y params contra el schema provisto.
  * En caso de error emite AppError VALIDATION_ERROR con details.fields.
  *
- * Ver docs/04-error-handling.md §2
  */
 
 import { Request, Response, NextFunction } from "express";

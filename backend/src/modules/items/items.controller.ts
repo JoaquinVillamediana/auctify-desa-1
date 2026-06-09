@@ -2,7 +2,6 @@
  * Controlador del módulo items/bids.
  * Traduce requests HTTP → service → response.
  *
- * Ver docs/features/F03-auctions.md y docs/features/F05-bidding.md
  */
 
 import { Request, Response, NextFunction } from "express";

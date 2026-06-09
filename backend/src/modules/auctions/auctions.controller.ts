@@ -3,7 +3,6 @@
  * Traduce requests HTTP → service → response.
  * Sin lógica de negocio aquí — solo orquestación.
  *
- * Ver docs/features/F03-auctions.md y docs/features/F04-auction-session-live.md
  */
 
 import { Request, Response, NextFunction } from "express";

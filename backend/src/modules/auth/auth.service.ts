@@ -1,6 +1,5 @@
 /**
  * Servicio de autenticación — lógica de negocio de auth.
- * Ver docs/features/F01-auth.md
  *
  * Registrar: crea Client admitted=false sin password.
  * Activar: valida ActivationToken → setea passwordHash → emite JWT.

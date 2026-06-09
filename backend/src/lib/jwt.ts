@@ -1,6 +1,5 @@
 /**
  * Utilidades de JWT.
- * Ver docs/03-auth-and-roles.md §1 para el payload esperado.
  */
 
 import jwt from "jsonwebtoken";

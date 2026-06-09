@@ -3,7 +3,6 @@
  * Traduce requests HTTP → service → response.
  * Sin lógica de negocio — solo orquestación.
  *
- * Ver docs/features/F02-payment-methods.md §Backend — endpoints
  */
 
 import { Request, Response, NextFunction } from "express";

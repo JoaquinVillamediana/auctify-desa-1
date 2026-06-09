@@ -14,7 +14,6 @@ export default function PendingScreen() {
 
   return (
     <ScreenContainer centered>
-      <Text style={styles.icon}>⏳</Text>
       <Text style={styles.title}>Registro en revisión</Text>
       <Text style={styles.body}>
         Tu solicitud fue recibida. La empresa verificará tus datos y te enviarán un{' '}
@@ -41,11 +40,6 @@ export default function PendingScreen() {
 }
 
 const styles = StyleSheet.create({
-  icon: {
-    fontSize: 56,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
   title: {
     ...typography.heading2,
     color: colors.text.primary,
